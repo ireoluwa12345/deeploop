@@ -52,7 +52,6 @@ Whether you're a mindfulness practitioner, therapist, or simply someone who want
 ### Mobile App Setup
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
    cd mobile
    ```
 
