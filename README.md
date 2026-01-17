@@ -1,4 +1,4 @@
-# Memory Keeper
+# Deeploop
 
 ## What This Project Does
 
@@ -11,7 +11,7 @@ Key features include:
 - Personal memory storage and organization
 - Cross-platform mobile experience (iOS/Android)
 
-## Why Someone Should Care
+## Why Should You Care
 
 In our fast-paced world, taking time for daily reflection is crucial for mental health and personal growth. Memory Keeper makes it easy to:
 - Build a consistent reflection habit
