@@ -1,12 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect } from 'react';
-import { apiService, LoginRequest, ApiError } from '../utils/api';
+import { apiService, LoginRequest, ApiError, RegisterRequest } from '../utils/api';
 
 export const useAuth = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -33,11 +36,27 @@ export const useAuth = () => {
       setIsLoggedIn(true);
       return { success: true };
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Login failed';
+      const message = error instanceof ApiError ? error.error : 'Login failed';
       setLoginError(message);
       return { success: false, error: message };
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const register = async (credentials: RegisterRequest) => {
+    setRegisterLoading(true);
+    setRegisterError(null);
+
+    try {
+      const response = await apiService.register(credentials);
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof ApiError ? error.error : 'Register failed';
+      setRegisterError(message);
+      return { success: false, error: message };
+    } finally {
+      setRegisterLoading(false);
     }
   };
 
@@ -56,6 +75,9 @@ export const useAuth = () => {
     loginLoading,
     loginError,
     login,
-    logout
+    logout,
+    registerLoading,
+    registerError,
+    register
   };
 };

@@ -42,7 +42,10 @@ func main() {
 	apiMux := http.NewServeMux()
 
 	apiMux.HandleFunc("GET /healthz", app.handleHealthz)
-	apiMux.HandleFunc("POST /user", app.HandleCreateUser)
+	apiMux.HandleFunc("POST /auth/login", app.HandleLogin)
+	apiMux.HandleFunc("POST /auth/register", app.HandleRegister)
+	// apiMux.HandleFunc("POST /auth/refresh", app.HandleRefresh)
+	// apiMux.HandleFunc("POST /auth/logout", app.HandleLogout)
 
 	mux.Handle("/api/", http.StripPrefix("/api", apiMux))
 

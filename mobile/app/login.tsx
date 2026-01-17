@@ -13,6 +13,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAuth } from "./context/auth";
 import styles from "./styles";
+import { statementCase } from "./utils/helper";
 
 const JournalLoginScreen = () => {
   const router = useRouter()
@@ -36,7 +37,7 @@ const JournalLoginScreen = () => {
     if (result.success) {
       router.push('/');
     } else {
-      Alert.alert('Login Failed', result.error || 'An error occurred');
+      Alert.alert('Login Failed', statementCase(result.error!) || 'An error occurred');
     }
   };
 

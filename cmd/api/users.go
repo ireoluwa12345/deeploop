@@ -8,13 +8,17 @@ import (
 	"time"
 
 	"database/sql"
+	"errors"
+
+	"github.com/lib/pq"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/ireoluwa12345/memory-keeper/internal/auth"
 	"github.com/ireoluwa12345/memory-keeper/internal/database"
 )
 
-func (app *application) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
+func (app *application) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 
 	var params struct {
@@ -30,14 +34,8 @@ func (app *application) HandleCreateUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user, err := app.db.CreateUser(context.Background(), database.CreateUserParams{
-		Email:    params.Email,
-		Password: params.Password,
-		Name:     params.Name,
-	})
-
 	validate := validator.New()
-	err = validate.Struct(user)
+	err = validate.Struct(params)
 	if err != nil {
 		app.respondWithError(w, http.StatusBadRequest, "request validation failed", err)
 		return
@@ -47,20 +45,38 @@ func (app *application) HandleCreateUser(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		app.respondWithError(w, http.StatusInternalServerError, "couldn't hash password", err)
 	}
-	user.Password = hash
+	params.Password = hash
 
-	user, err = app.db.CreateUser(context.Background(), database.CreateUserParams{
+	id := uuid.New()
+
+	user, err := app.db.CreateUser(context.Background(), database.CreateUserParams{
+		ID:       id,
 		Email:    params.Email,
 		Password: params.Password,
 		Name:     params.Name,
 	})
 
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			app.respondWithError(w, http.StatusConflict, "account exists", err)
+			return
+		}
 		app.respondWithError(w, http.StatusInternalServerError, "couldn't create user", err)
 		return
 	}
 
-	app.respondWithJSON(w, http.StatusCreated, user)
+	response := map[string]interface{}{
+		"user": map[string]interface{}{
+			"id":         user.ID,
+			"email":      user.Email,
+			"name":       user.Name,
+			"created_at": user.CreatedAt,
+			"updated_at": user.UpdatedAt,
+		},
+	}
+
+	app.respondWithJSON(w, http.StatusCreated, response)
 }
 
 func (app *application) HandleLogin(w http.ResponseWriter, r *http.Request) {

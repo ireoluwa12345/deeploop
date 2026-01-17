@@ -1,7 +1,7 @@
 import BackButton from "@/components/BackButton";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Text,
     TextInput,
@@ -10,20 +10,43 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { useAuth } from '@/app/context/auth';
 import styles from "./styles";
+import { statementCase } from "./utils/helper";
 
 const RegisterScreen = () => {
     const router = useRouter();
+    const { register, registerLoading, registerError } = useAuth();
 
-    // State for form fields
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
-    // State to handle password visibility toggle
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
+
+    const [error, setError] = useState('');
+
+    const [showSuccess, setShowSuccess] = useState(false);
+
+    const handleRegister = async () => {
+        if (password !== confirmPassword) {
+            setError('Passwords do not match');
+            return;
+        }
+        setError('');
+        const result = await register({ name: fullName, email, password });
+        if (result.success) {
+            setShowSuccess(true);
+            setTimeout(() => {
+                setShowSuccess(false);
+                router.push('/login');
+            }, 2000);
+        } else {
+            setError(result.error || 'Registration failed');
+        }
+    };
 
     return (
         <SafeAreaProvider style={styles.container}>
@@ -41,9 +64,17 @@ const RegisterScreen = () => {
                     <Text style={styles.appTitle}>Create Account</Text>
                     <Text style={[styles.appSubtitle, { letterSpacing: 1, textTransform: 'none', fontSize: 14 }]}>Start your daily reflection journey</Text>
                 </View>
+                
 
                 {/* --- FORM SECTION --- */}
                 <View style={styles.formContainer}>
+                    {error ? <Text style={{ backgroundColor: '#ffebee', color: '#d32f2f', padding: 10, borderRadius: 5, marginTop: 10, marginBottom: 10, textAlign: 'center', width: '100%' }}>{statementCase(error)}</Text> : null}
+                     {/* Success Message */}
+                     {showSuccess && (
+                         <View style={{ backgroundColor: '#e8f5e8', padding: 10, marginTop: 20, marginBottom: 10, borderRadius: 5, alignItems: 'center' }}>
+                             <Text style={{ color: '#2e7d32', fontSize: 16 }}>Registration successful! Redirecting to login...</Text>
+                         </View>
+                     )}
 
                     {/* Full Name Input */}
                     <View style={styles.inputWrapper}>
@@ -122,13 +153,14 @@ const RegisterScreen = () => {
                         </View>
                     </View>
 
-                    {/* Sign Up Button */}
-                    <TouchableOpacity style={[styles.signInButton, { marginTop: 20 }]}>
-                        <Text style={styles.signInText}>SIGN UP</Text>
-                    </TouchableOpacity>
-                </View>
+                     {/* Sign Up Button */}
+                     <TouchableOpacity style={[styles.signInButton, { marginTop: 20 }]} onPress={handleRegister} disabled={registerLoading}>
+                         <Text style={styles.signInText}>{registerLoading ? 'SIGNING UP...' : 'SIGN UP'}</Text>
+                     </TouchableOpacity>
+                 </View>
 
-                {/* --- FOOTER SECTION --- */}
+
+                 {/* --- FOOTER SECTION --- */}
                 <View style={styles.footerContainer}>
                     {/* Note: Divider removed in this screen design, but can be added if needed */}
 
@@ -138,12 +170,6 @@ const RegisterScreen = () => {
                             <Text style={styles.registerLink}>Log In</Text>
                         </TouchableOpacity>
                     </View>
-
-                    {/* Background accent circle can be added here if we had the asset/style, 
-                  but strictly following given styles for now. 
-                  The image shows some background blobs which might require absolute positioning 
-                  or new style additions. I'll stick to the clean layout for consistency first. 
-              */}
 
                 </View>
             </KeyboardAwareScrollView>
