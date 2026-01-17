@@ -159,3 +159,61 @@ func TestGetBearerToken(t *testing.T) {
 		})
 	}
 }
+
+func TestValidatePasswordStrength(t *testing.T) {
+	tests := []struct {
+		name        string
+		password    string
+		wantErr     bool
+		matchString string
+	}{
+		{
+			name:        "Valid Password",
+			password:    "ValidPassword123!",
+			wantErr:     false,
+			matchString: "",
+		},
+		{
+			name:        "Password without uppercase letter",
+			password:    "password123!",
+			wantErr:     true,
+			matchString: "password must contain at least one capital letter",
+		},
+		{
+			name:        "Password without lowercase letter",
+			password:    "PASSWORD123!",
+			wantErr:     true,
+			matchString: "password must contain at least one lowercase letter",
+		},
+		{
+			name:        "Password without number",
+			password:    "Password!",
+			wantErr:     true,
+			matchString: "password must contain at least one number!",
+		},
+		{
+			name:        "Password without special character",
+			password:    "Password123",
+			wantErr:     true,
+			matchString: "password must contain at least one special character",
+		},
+		{
+			name:        "Password with less than 8 characters",
+			password:    "pass",
+			wantErr:     true,
+			matchString: "password must be at least 8 characters long",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePasswordStrength(tt.password)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidatePasswordStrength() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil && err.Error() != tt.matchString {
+				t.Errorf("ValidatePasswordStrength() error = %v, wantErr %v", err, tt.matchString)
+			}
+		})
+	}
+}

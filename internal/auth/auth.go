@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -111,4 +112,28 @@ func GetAPIKey(headers http.Header) (string, error) {
 	authToken := strings.TrimPrefix(authHeader, "ApiKey ")
 
 	return authToken, nil
+}
+
+func ValidatePasswordStrength(password string) error {
+	if len(password) < 8 {
+		return errors.New("password must be at least 8 characters long")
+	}
+
+	if !regexp.MustCompile(`[A-Z]`).MatchString(password) {
+		return errors.New("password must contain at least one capital letter")
+	}
+
+	if !regexp.MustCompile(`[a-z]`).MatchString(password) {
+		return errors.New("password must contain at least one lowercase letter")
+	}
+
+	if !regexp.MustCompile(`[0-9]`).MatchString(password) {
+		return errors.New("password must contain at least one number!")
+	}
+
+	if !regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`).MatchString(password) {
+		return errors.New("password must contain at least one special character")
+	}
+
+	return nil
 }

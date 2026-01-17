@@ -12,7 +12,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAuth } from '@/app/context/auth';
 import styles from "./styles";
-import { statementCase } from "./utils/helper";
+import { statementCase, validateEmail } from "./utils/helper";
 
 const RegisterScreen = () => {
     const router = useRouter();
@@ -31,6 +31,10 @@ const RegisterScreen = () => {
     const [showSuccess, setShowSuccess] = useState(false);
 
     const handleRegister = async () => {
+        if (!validateEmail(email)) {
+            setError('Invalid email format');
+            return;
+        }
         if (password !== confirmPassword) {
             setError('Passwords do not match');
             return;

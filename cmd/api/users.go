@@ -22,7 +22,7 @@ func (app *application) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 
 	var params struct {
-		Email    string `json:"email" validate:"required"`
+		Email    string `json:"email" validate:"required,email"`
 		Password string `json:"password" validate:"required"`
 		Name     string `json:"name" validate:"required"`
 	}
@@ -37,7 +37,13 @@ func (app *application) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	validate := validator.New()
 	err = validate.Struct(params)
 	if err != nil {
-		app.respondWithError(w, http.StatusBadRequest, "request validation failed", err)
+		app.respondWithError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+
+	passwordValidationErr := auth.ValidatePasswordStrength(params.Password)
+	if passwordValidationErr != nil {
+		app.respondWithError(w, http.StatusBadRequest, passwordValidationErr.Error(), err)
 		return
 	}
 
