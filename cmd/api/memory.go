@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -24,6 +25,7 @@ import (
 
 func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 	userID, ok := getUserIDFromContext(r.Context())
+	fmt.Println(userID)
 	if !ok {
 		app.respondWithError(w, http.StatusUnauthorized, "user not authenticated", nil)
 		return
@@ -154,7 +156,7 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 		ID:       uuid.New(),
 		MemoryID: memory.ID,
 		ContentUrl: sql.NullString{
-			String: fmt.Sprintf("%s/%s", app.s3Bucket, key),
+			String: fmt.Sprintf("%s,%s", app.s3Bucket, key),
 			Valid:  true,
 		},
 		Content:     params.Content,
@@ -187,6 +189,10 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) getPresignerUrlFromDBUrl(content database.Content) (database.Content, error) {
 	urlData := strings.Split(content.ContentUrl.String, ",")
+	fmt.Printf("%v", urlData)
+	if len(urlData) != 2 {
+		return content, errors.New("invalid presigned url")
+	}
 	bucket := urlData[0]
 	key := urlData[1]
 	expiresIn, err := time.ParseDuration("600s")

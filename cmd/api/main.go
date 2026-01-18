@@ -86,7 +86,7 @@ func main() {
 	// apiMux.HandleFunc("POST /auth/refresh", app.HandleRefresh)
 	// apiMux.HandleFunc("POST /auth/logout", app.HandleLogout)
 	// apiMux.HandleFunc("POST /memory/upload", app.middlewareRequireAuth(app.uploadMemory))
-	apiMux.HandleFunc("POST /memory", app.uploadMemory)
+	apiMux.HandleFunc("POST /memory", app.middlewareRequireAuth(app.uploadMemory))
 
 	mux.Handle("/api/", http.StripPrefix("/api", apiMux))
 
