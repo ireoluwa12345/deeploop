@@ -33,6 +33,12 @@ export interface RegisterResponse {
   user: user;
 }
 
+export interface MemoryResponse {
+  id: string;
+  image_url: string;
+  created_at: string;
+}
+
   /**
    * Makes an HTTP request to the specified endpoint.
    * 
@@ -59,11 +65,18 @@ class ApiService {
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
 
-    const config: RequestInit = {
-      headers: {
+    const isFormData = options.body instanceof FormData;
+    const headers = {
         'Content-Type': 'application/json',
         ...options.headers,
-      },
+    } as Record<string, string>;
+
+    if (isFormData) {
+        delete headers['Content-Type'];
+    }
+
+    const config: RequestInit = {
+      headers,
       ...options,
     };
 
@@ -95,6 +108,13 @@ class ApiService {
     return this.request<RegisterResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  async createMemory(data: FormData): Promise<MemoryResponse> {
+    return this.request<MemoryResponse>('/memories', {
+      method: 'POST',
+      body: data,
     });
   }
 

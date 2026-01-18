@@ -6,7 +6,8 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
+    ActivityIndicator
 } from 'react-native';
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -16,7 +17,21 @@ import { statementCase, validateEmail } from "./utils/helper";
 
 const RegisterScreen = () => {
     const router = useRouter();
-    const { register, registerLoading, registerError } = useAuth();
+    const { register, registerLoading, registerError, isLoggedIn, loading } = useAuth();
+
+    useEffect(() => {
+        if (!loading && isLoggedIn) {
+            router.replace('/');
+        }
+    }, [loading, isLoggedIn, router]);
+
+    if (loading) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#BF5B30" />
+            </View>
+        );
+    }
 
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
@@ -68,17 +83,17 @@ const RegisterScreen = () => {
                     <Text style={styles.appTitle}>Create Account</Text>
                     <Text style={[styles.appSubtitle, { letterSpacing: 1, textTransform: 'none', fontSize: 14 }]}>Start your daily reflection journey</Text>
                 </View>
-                
+
 
                 {/* --- FORM SECTION --- */}
                 <View style={styles.formContainer}>
                     {error ? <Text style={{ backgroundColor: '#ffebee', color: '#d32f2f', padding: 10, borderRadius: 5, marginTop: 10, marginBottom: 10, textAlign: 'center', width: '100%' }}>{statementCase(error)}</Text> : null}
-                     {/* Success Message */}
-                     {showSuccess && (
-                         <View style={{ backgroundColor: '#e8f5e8', padding: 10, marginTop: 20, marginBottom: 10, borderRadius: 5, alignItems: 'center' }}>
-                             <Text style={{ color: '#2e7d32', fontSize: 16 }}>Registration successful! Redirecting to login...</Text>
-                         </View>
-                     )}
+                    {/* Success Message */}
+                    {showSuccess && (
+                        <View style={{ backgroundColor: '#e8f5e8', padding: 10, marginTop: 20, marginBottom: 10, borderRadius: 5, alignItems: 'center' }}>
+                            <Text style={{ color: '#2e7d32', fontSize: 16 }}>Registration successful! Redirecting to login...</Text>
+                        </View>
+                    )}
 
                     {/* Full Name Input */}
                     <View style={styles.inputWrapper}>
@@ -157,14 +172,14 @@ const RegisterScreen = () => {
                         </View>
                     </View>
 
-                     {/* Sign Up Button */}
-                     <TouchableOpacity style={[styles.signInButton, { marginTop: 20 }]} onPress={handleRegister} disabled={registerLoading}>
-                         <Text style={styles.signInText}>{registerLoading ? 'SIGNING UP...' : 'SIGN UP'}</Text>
-                     </TouchableOpacity>
-                 </View>
+                    {/* Sign Up Button */}
+                    <TouchableOpacity style={[styles.signInButton, { marginTop: 20 }]} onPress={handleRegister} disabled={registerLoading}>
+                        <Text style={styles.signInText}>{registerLoading ? 'SIGNING UP...' : 'SIGN UP'}</Text>
+                    </TouchableOpacity>
+                </View>
 
 
-                 {/* --- FOOTER SECTION --- */}
+                {/* --- FOOTER SECTION --- */}
                 <View style={styles.footerContainer}>
                     {/* Note: Divider removed in this screen design, but can be added if needed */}
 

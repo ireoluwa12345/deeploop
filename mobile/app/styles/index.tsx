@@ -1,9 +1,21 @@
 import { StyleSheet, Platform } from "react-native";
 
+export const Colors = {
+  background: '#F9F9F9', // Creamy off-white (Global app background)
+  surface: '#FFFFFF',
+  primary: '#BF5B30', // Burnt orange / Terracotta
+  secondary: '#5A7D5A', // Sage/Forest Green
+  text: '#1A1A1A',
+  textSecondary: '#888888',
+  border: '#E0E0E0',
+  error: '#CC3333',
+  errorBackground: '#FFEEEE',
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF9F6', // Creamy off-white
+    backgroundColor: Colors.background,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -20,18 +32,18 @@ const styles = StyleSheet.create({
   appTitle: {
     fontSize: 42,
     fontWeight: '900', // Extra bold
-    color: '#1A1A1A',
+    color: Colors.text,
     letterSpacing: -1, // Tight tracking
     fontFamily: Platform.OS === 'ios' ? 'Arial Black' : 'Roboto',
   },
   appSubtitle: {
     fontSize: 12,
-    color: '#888',
+    color: Colors.textSecondary,
     letterSpacing: 4, // Wide tracking
     marginTop: 8,
     fontWeight: '500',
   },
-  
+
   formContainer: {
     width: '100%',
   },
@@ -41,27 +53,27 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#1A1A1A',
+    color: Colors.text,
     letterSpacing: 1.5,
     marginBottom: 10,
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     borderRadius: 2, // Sharp corners as per design
     paddingVertical: 14,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: '#1A1A1A',
+    color: Colors.text,
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     borderRadius: 2,
   },
   passwordInput: {
@@ -69,7 +81,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: '#1A1A1A',
+    color: Colors.text,
   },
   eyeIcon: {
     padding: 14,
@@ -85,20 +97,20 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   signInButton: {
-    backgroundColor: '#BF5B30', // Burnt orange / Terracotta
+    backgroundColor: Colors.primary,
     paddingVertical: 18,
     borderRadius: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#BF5B30',
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
   signInText: {
-    color: '#FFF',
+    color: Colors.surface,
     fontSize: 14,
     fontWeight: 'bold',
     letterSpacing: 2,
@@ -108,13 +120,13 @@ const styles = StyleSheet.create({
   errorContainer: {
     marginTop: 20,
     padding: 12,
-    backgroundColor: '#FEE',
+    backgroundColor: Colors.errorBackground,
     borderWidth: 1,
     borderColor: '#FCC',
     borderRadius: 4,
   },
   errorText: {
-    color: '#C33',
+    color: Colors.error,
     fontSize: 14,
     textAlign: 'center',
   },
@@ -126,7 +138,7 @@ const styles = StyleSheet.create({
   divider: {
     width: 60,
     height: 1,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: Colors.border,
     marginBottom: 30,
   },
   registerRow: {
@@ -134,11 +146,11 @@ const styles = StyleSheet.create({
     marginBottom: 60,
   },
   registerText: {
-    color: '#888',
+    color: Colors.textSecondary,
     fontSize: 14,
   },
   registerLink: {
-    color: '#5A7D5A', // Sage/Forest Green
+    color: Colors.secondary,
     fontWeight: 'bold',
     fontSize: 14,
   },
@@ -156,7 +168,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#D69E8E', // Light Terracotta
   },
   dotInactive: {
-    backgroundColor: '#E0E0E0',
+    backgroundColor: Colors.border,
   },
 });
 

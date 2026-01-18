@@ -6,10 +6,75 @@ package database
 
 import (
 	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type ContentType string
+
+const (
+	ContentTypeAudio ContentType = "audio"
+	ContentTypeImage ContentType = "image"
+	ContentTypeText  ContentType = "text"
+)
+
+func (e *ContentType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ContentType(s)
+	case string:
+		*e = ContentType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ContentType: %T", src)
+	}
+	return nil
+}
+
+type NullContentType struct {
+	ContentType ContentType `json:"content_type"`
+	Valid       bool        `json:"valid"` // Valid is true if ContentType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullContentType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ContentType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ContentType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullContentType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ContentType), nil
+}
+
+type Content struct {
+	ID          uuid.UUID       `json:"id"`
+	MemoryID    uuid.UUID       `json:"memory_id"`
+	ContentType ContentType     `json:"content_type"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+	ContentUrl  sql.NullString  `json:"content_url"`
+	Content     string          `json:"content"`
+	Metadata    json.RawMessage `json:"metadata"`
+}
+
+type Memory struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Date      time.Time `json:"date"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
 
 type RefreshToken struct {
 	Token     string       `json:"token"`

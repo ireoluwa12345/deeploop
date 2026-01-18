@@ -1,13 +1,14 @@
 import BackButton from "@/components/BackButton";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -17,7 +18,21 @@ import { statementCase } from "./utils/helper";
 
 const JournalLoginScreen = () => {
   const router = useRouter()
-  const { login, loginLoading, loginError } = useAuth();
+  const { login, loginLoading, loginError, isLoggedIn, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && isLoggedIn) {
+      router.replace('/');
+    }
+  }, [loading, isLoggedIn, router]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#BF5B30" />
+      </View>
+    );
+  }
 
   // State to handle password visibility toggle
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);

@@ -1,4 +1,3 @@
-import React from "react";
 import {
   StyleSheet,
   Text,
@@ -7,6 +6,7 @@ import {
   Dimensions,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import {
   useFonts,
@@ -15,13 +15,29 @@ import {
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuth } from "./context/auth";
+import { useEffect } from "react";
 
 const { width, height } = Dimensions.get("window");
 
 const LoginScreen = () => {
   const router = useRouter();
+  const { isLoggedIn, loading } = useAuth();
   let [fontsLoaded] = useFonts({ JetBrainsMono_400Regular });
-  if (!fontsLoaded) return null;
+
+  useEffect(() => {
+    if (!loading && isLoggedIn) {
+      router.replace('/');
+    }
+  }, [loading, isLoggedIn, router]);
+
+  if (!fontsLoaded || loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#5A7D5A" />
+      </View>
+    );
+  }
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -61,10 +77,10 @@ const LoginScreen = () => {
             <Text style={styles.socialBtnText}>Continue with Apple</Text>
           </TouchableOpacity>
 
-           {/* Email Login Link */}
-           <TouchableOpacity style={styles.emailButton} onPress={() => router.push('/login')}>
-             <Text style={styles.emailText}>LOGIN WITH EMAIL</Text>
-           </TouchableOpacity>
+          {/* Email Login Link */}
+          <TouchableOpacity style={styles.emailButton} onPress={() => router.push('/login')}>
+            <Text style={styles.emailText}>LOGIN WITH EMAIL</Text>
+          </TouchableOpacity>
 
           {/* Footer Legal Text */}
           <View style={styles.footerContainer}>
