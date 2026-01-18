@@ -26,6 +26,14 @@ const JournalLoginScreen = () => {
     }
   }, [loading, isLoggedIn, router]);
 
+  // State to handle password visibility toggle
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
+  // Form state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -33,13 +41,6 @@ const JournalLoginScreen = () => {
       </View>
     );
   }
-
-  // State to handle password visibility toggle
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-
-  // Form state
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {

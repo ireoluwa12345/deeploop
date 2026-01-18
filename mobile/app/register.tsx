@@ -25,14 +25,6 @@ const RegisterScreen = () => {
         }
     }, [loading, isLoggedIn, router]);
 
-    if (loading) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#BF5B30" />
-            </View>
-        );
-    }
-
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -44,6 +36,14 @@ const RegisterScreen = () => {
     const [error, setError] = useState('');
 
     const [showSuccess, setShowSuccess] = useState(false);
+
+    if (loading) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#BF5B30" />
+            </View>
+        );
+    }
 
     const handleRegister = async () => {
         if (!validateEmail(email)) {
