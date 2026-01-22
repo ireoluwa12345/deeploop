@@ -1,42 +1,63 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from './styles';
+import { apiService, MemoryResponse } from './utils/api';
 
 const { width } = Dimensions.get('window');
-
-// Mock Data
-const ENTRIES = [
-    {
-        id: '1',
-        type: 'write',
-        time: '08:30 AM',
-        content: "Started the morning with a clear head. The coffee was particularly good today. Finally felt the seasonal shift in the air."
-    },
-    {
-        id: '2',
-        type: 'snap',
-        time: '01:15 PM',
-        image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2670&auto=format&fit=crop',
-        caption: 'View from the garden bench'
-    },
-    {
-        id: '3',
-        type: 'record',
-        time: '06:45 PM',
-        title: 'Evening thoughts on the park walk',
-        duration: '01:12'
-    }
-];
 
 const TimelineScreen = () => {
     const router = useRouter();
     const { date } = useLocalSearchParams();
+    const [memories, setMemories] = useState<MemoryResponse>();
+    const [loading, setLoading] = useState(true);
 
-    // Fallback if no date param is passed (e.g. from nav bar)
-    const displayDate = date ? date.toString() : "OCTOBER 12TH";
+    // Date handling
+    const getLocalDate = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    const rawDate = date ? date.toString() : getLocalDate();
+    console.log(rawDate)
+    const displayDate = new Date(rawDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric' }).toUpperCase();
+
+    const getDaySuffix = (d: number) => {
+        if (d > 3 && d < 21) return 'TH';
+        switch (d % 10) {
+            case 1: return "ST";
+            case 2: return "ND";
+            case 3: return "RD";
+            default: return "TH";
+        }
+    };
+    const day = new Date(rawDate).getDate();
+    const formattedDisplayDate = `${new Date(rawDate).toLocaleString('default', { month: 'long' }).toUpperCase()} ${day}${getDaySuffix(day)}`;
+
+
+    useEffect(() => {
+        const fetchMemories = async () => {
+            setLoading(true);
+            try {
+                const data = await apiService.getMemoriesByDate(rawDate);
+                setMemories(data);
+            } catch (error) {
+                console.error("Failed to fetch memories:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchMemories();
+    }, [rawDate]);
+
+    const formatTime = (isoString: string) => {
+        return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
     return (
         <View style={styles.container}>
@@ -44,7 +65,7 @@ const TimelineScreen = () => {
                 <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
                     <Icon name="chevron-left" size={32} color="#1A1A1A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{displayDate}</Text>
+                <Text style={styles.headerTitle}>{formattedDisplayDate}</Text>
                 <TouchableOpacity style={styles.iconButton}>
                     <Icon name="calendar-month-outline" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
@@ -54,64 +75,52 @@ const TimelineScreen = () => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                <View style={styles.timelineContainer}>
-                    {/* Vertical Line Spine */}
-                    <View style={styles.spine} />
+                {loading ? (
+                    <View style={{ marginTop: 100 }}>
+                        <ActivityIndicator size="large" color={Colors.primary} />
+                    </View>
+                ) : memories?.content.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                        <Icon name="leaf" size={48} color={Colors.secondary} style={{ opacity: 0.5, marginBottom: 16 }} />
+                        <Text style={styles.emptyText}>No entries for this day.</Text>
+                        <Text style={styles.emptySubText}>Take a moment to capture a memory or write down your thoughts.</Text>
+                    </View>
+                ) : (
+                    <View style={styles.timelineContainer}>
+                        {/* Vertical Line Spine */}
+                        <View style={styles.spine} />
 
-                    {ENTRIES.map((entry, index) => (
-                        <View key={entry.id} style={styles.entryRow}>
-                            {/* Time & Icon Column */}
-                            <View style={styles.metaColumn}>
-                                <View style={styles.iconContainer}>
-                                    <Icon
-                                        name={entry.type === 'write' ? 'pencil-outline' : entry.type === 'snap' ? 'camera-outline' : 'microphone-outline'}
-                                        size={20}
-                                        color="#555"
-                                    />
+                        {memories?.content.map((entry, index) => (
+                            <View key={entry.id} style={styles.entryRow}>
+                                {/* Time & Icon Column */}
+                                <View style={styles.metaColumn}>
+                                    <View style={styles.iconContainer}>
+                                        <Icon
+                                            name="camera-outline" // Assuming all are snaps for now
+                                            size={20}
+                                            color="#555"
+                                        />
+                                    </View>
+                                </View>
+
+                                {/* Content Column */}
+                                <View style={styles.contentColumn}>
+                                    <Text style={styles.metaText}>{formatTime(entry.created_at)} — SNAP</Text>
+
+                                    <View style={styles.card}>
+                                        <View>
+                                            <Image source={{ uri: entry.content_url }} style={styles.snapImage} />
+                                            {/* Assuming API response might have caption later, for now just image */}
+                                        </View>
+                                    </View>
                                 </View>
                             </View>
-
-                            {/* Content Column */}
-                            <View style={styles.contentColumn}>
-                                <Text style={styles.metaText}>{entry.time} — {entry.type.toUpperCase()}</Text>
-
-                                <View style={styles.card}>
-                                    {entry.type === 'write' && (
-                                        <Text style={styles.writeContent}>{entry.content}</Text>
-                                    )}
-
-                                    {entry.type === 'snap' && (
-                                        <View>
-                                            <Image source={{ uri: entry.image }} style={styles.snapImage} />
-                                            {entry.caption && <Text style={styles.captionText}>{entry.caption}</Text>}
-                                        </View>
-                                    )}
-
-                                    {entry.type === 'record' && (
-                                        <View>
-                                            <Text style={styles.recordTitle}>{entry.title || 'Voice Note'}</Text>
-                                            <View style={styles.audioPlayerPlaceholder}>
-                                                {/* Simulated Waveform */}
-                                                <View style={styles.miniWaveform}>
-                                                    {Array.from({ length: 20 }).map((_, i) => (
-                                                        <View key={i} style={[styles.miniBar, { height: Math.random() * 20 + 5 }]} />
-                                                    ))}
-                                                </View>
-
-                                                <TouchableOpacity style={styles.miniPlayBtn}>
-                                                    <Icon name="play" size={20} color="#FFF" />
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                    )}
-                                </View>
-                            </View>
-                        </View>
-                    ))}
-                </View>
+                        ))}
+                    </View>
+                )}
             </ScrollView>
 
-            <TouchableOpacity style={styles.fab}>
+            <TouchableOpacity style={styles.fab} onPress={() => router.push('/snap')}>
                 <Icon name="plus" size={32} color="#FFF" />
             </TouchableOpacity>
         </View>
@@ -142,6 +151,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingBottom: 100,
+        flexGrow: 1,
     },
     timelineContainer: {
         paddingHorizontal: 20,
@@ -149,7 +159,7 @@ const styles = StyleSheet.create({
     },
     spine: {
         position: 'absolute',
-        left: 44, // Align with icon center (20 pad + 24 width/2 approx)
+        left: 44,
         top: 0,
         bottom: 0,
         width: 1,
@@ -169,7 +179,7 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: Colors.background, // Lighter ring
+        backgroundColor: Colors.background,
         borderWidth: 1,
         borderColor: Colors.border,
         justifyContent: 'center',
@@ -187,7 +197,7 @@ const styles = StyleSheet.create({
         marginTop: 6,
     },
     card: {
-        backgroundColor: Colors.surface, // White/Cream card
+        backgroundColor: Colors.surface,
         borderRadius: 16,
         padding: 16,
         shadowColor: "#000",
@@ -196,54 +206,12 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 2,
     },
-    writeContent: {
-        fontSize: 16,
-        lineHeight: 24,
-        color: '#333',
-    },
     snapImage: {
         width: '100%',
         height: 200,
         borderRadius: 12,
         marginBottom: 8,
         backgroundColor: '#EEE'
-    },
-    captionText: {
-        fontSize: 14,
-        color: Colors.textSecondary,
-        fontStyle: 'italic',
-    },
-    recordTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 16,
-    },
-    audioPlayerPlaceholder: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-    },
-    miniWaveform: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 2,
-        height: 30,
-        flex: 1,
-        marginRight: 16,
-    },
-    miniBar: {
-        width: 3,
-        backgroundColor: Colors.secondary,
-        borderRadius: 1.5,
-    },
-    miniPlayBtn: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#333',
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     fab: {
         position: 'absolute',
@@ -252,7 +220,7 @@ const styles = StyleSheet.create({
         width: 64,
         height: 64,
         borderRadius: 32,
-        backgroundColor: Colors.primary, // Terracotta
+        backgroundColor: Colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: Colors.primary,
@@ -260,6 +228,27 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 4,
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 40,
+        marginTop: 60,
+    },
+    emptyText: {
+        fontSize: 18,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        fontStyle: 'italic',
+        color: Colors.text,
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    emptySubText: {
+        fontSize: 14,
+        color: Colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 20,
     }
 });
 

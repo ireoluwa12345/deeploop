@@ -48,6 +48,7 @@ func main() {
 	if s3Region == "" {
 		log.Fatal("S3_REGION environment variable is not set")
 	}
+	infoLog.Println("S3_REGION:", s3Region)
 
 	s3CfDistribution := os.Getenv("S3_CF_DISTRO")
 	if s3CfDistribution == "" {
@@ -84,9 +85,8 @@ func main() {
 	apiMux.HandleFunc("POST /auth/login", app.HandleLogin)
 	apiMux.HandleFunc("POST /auth/register", app.HandleRegister)
 	// apiMux.HandleFunc("POST /auth/refresh", app.HandleRefresh)
-	// apiMux.HandleFunc("POST /auth/logout", app.HandleLogout)
-	// apiMux.HandleFunc("POST /memory/upload", app.middlewareRequireAuth(app.uploadMemory))
 	apiMux.HandleFunc("POST /memory", app.middlewareRequireAuth(app.uploadMemory))
+	apiMux.HandleFunc("GET /memory/{date}", app.middlewareRequireAuth(app.getMemoryWithDate))
 
 	mux.Handle("/api/", http.StripPrefix("/api", apiMux))
 

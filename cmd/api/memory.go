@@ -25,7 +25,6 @@ import (
 
 func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 	userID, ok := getUserIDFromContext(r.Context())
-	fmt.Println(userID)
 	if !ok {
 		app.respondWithError(w, http.StatusUnauthorized, "user not authenticated", nil)
 		return
@@ -66,8 +65,6 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 	mediaType, _, err := mime.ParseMediaType(handler.Header.Get("Content-Type"))
 	ext := filepath.Ext(handler.Filename)
 
-	fmt.Println(ext)
-
 	if err != nil {
 		app.respondWithError(w, http.StatusBadRequest, "invalid file", nil)
 		return
@@ -97,12 +94,16 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
+		app.respondWithError(w, http.StatusInternalServerError, "couldn't seek file", err)
+		return
+	}
+
 	randBytes := make([]byte, 32)
 	if _, err := rand.Read(randBytes); err != nil {
 		app.respondWithError(w, http.StatusInternalServerError, "couldn't generate random key", err)
 		return
 	}
-
 	key := fmt.Sprintf("%s%s", hex.EncodeToString(randBytes), ext)
 
 	_, err = app.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
@@ -187,6 +188,65 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 	app.respondWithJSON(w, http.StatusCreated, response)
 }
 
+func (app *application) getMemoryWithDate(w http.ResponseWriter, r *http.Request) {
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		app.respondWithError(w, http.StatusUnauthorized, "user not authenticated", nil)
+		return
+	}
+
+	queryDate := r.PathValue("date")
+
+	currentDate, err := time.Parse("2006-01-02", queryDate)
+	if err != nil {
+		app.respondWithError(w, http.StatusBadRequest, "invalid date", err)
+		return
+	}
+
+	memory, err := app.db.GetMemoryByUserIDAndDate(context.Background(), database.GetMemoryByUserIDAndDateParams{
+		UserID: userID,
+		Date:   currentDate,
+	})
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			app.respondWithError(w, http.StatusNotFound, "memory not found", err)
+			return
+		}
+		app.respondWithError(w, http.StatusInternalServerError, "couldn't get memory", err)
+		return
+	}
+
+	content, err := app.db.GetContentByMemoryID(context.Background(), memory.ID)
+
+	contentResponse := make([]map[string]interface{}, 0)
+	for _, c := range content {
+		c, err = app.getPresignerUrlFromDBUrl(c)
+		if err != nil {
+			app.respondWithError(w, http.StatusInternalServerError, "couldn't get file presigned url", err)
+			return
+		}
+		fmt.Println(c.ContentUrl.String)
+		contentResponse = append(contentResponse, map[string]interface{}{
+			"id":           c.ID,
+			"content":      c.Content,
+			"metadata":     c.Metadata,
+			"content_url":  c.ContentUrl.String,
+			"content_type": c.ContentType,
+			"created_at":   c.CreatedAt,
+			"updated_at":   c.UpdatedAt,
+		})
+	}
+
+	response := map[string]interface{}{
+		"entry_date": memory.Date,
+		"id":         memory.ID,
+		"content":    contentResponse,
+	}
+
+	app.respondWithJSON(w, http.StatusOK, response)
+}
+
 func (app *application) getPresignerUrlFromDBUrl(content database.Content) (database.Content, error) {
 	urlData := strings.Split(content.ContentUrl.String, ",")
 	fmt.Printf("%v", urlData)
@@ -203,6 +263,8 @@ func (app *application) getPresignerUrlFromDBUrl(content database.Content) (data
 	if err != nil {
 		return content, err
 	}
+
+	fmt.Println("Generated presigned URL:", url)
 
 	content.ContentUrl = sql.NullString{
 		String: url,

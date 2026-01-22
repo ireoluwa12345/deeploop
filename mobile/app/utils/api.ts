@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
 export interface LoginRequest {
@@ -35,9 +37,18 @@ export interface RegisterResponse {
 
 export interface MemoryResponse {
   id: string;
-  image_url: string;
-  created_at: string;
+  content: ContentType[]
 }
+
+type ContentType = {
+  content_type: string;
+  content: string;
+  content_url: string;
+  id: string;
+  created_at: string;
+  updated_at: string;
+  metadata: string;
+} 
 
   /**
    * Makes an HTTP request to the specified endpoint.
@@ -59,9 +70,16 @@ class ApiService {
     this.baseURL = baseURL;
   }
 
+  private onLogout: (() => void) | null = null;
+
+  setLogoutCallback(callback: () => void) {
+    this.onLogout = callback;
+  }
+
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    isRetry = false
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
 
@@ -75,6 +93,11 @@ class ApiService {
         delete headers['Content-Type'];
     }
 
+    const token = await AsyncStorage.getItem('userToken');
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const config: RequestInit = {
       headers,
       ...options,
@@ -84,6 +107,22 @@ class ApiService {
       const response = await fetch(url, config);
 
       if (!response.ok) {
+        if (response.status === 401 && !isRetry) {
+             try {
+                const refreshResponse = await this.refreshToken();
+                if (refreshResponse && refreshResponse.token) {
+                    await AsyncStorage.setItem('userToken', refreshResponse.token);
+                    return this.request<T>(endpoint, options, true);
+                }
+             } catch (refreshError) {
+                 this.onLogout?.();
+             }
+        }
+        
+        if (response.status === 401) {
+            this.onLogout?.();
+        }
+
         const errorData = await response.json().catch(() => ({}));
         throw new ApiError(errorData.error || 'Request failed', response.status);
       }
@@ -95,6 +134,12 @@ class ApiService {
       }
       throw new ApiError('Network error', 0);
     }
+  }
+
+  async refreshToken(): Promise<{ token: string }> {
+    return this.request<{ token: string }>('/auth/refresh', {
+        method: 'POST',
+    }, true);
   }
 
   async login(data: LoginRequest): Promise<LoginResponse> {
@@ -112,9 +157,15 @@ class ApiService {
   }
 
   async createMemory(data: FormData): Promise<MemoryResponse> {
-    return this.request<MemoryResponse>('/memories', {
+    return this.request<MemoryResponse>('/memory', {
       method: 'POST',
       body: data,
+    });
+  }
+
+  async getMemoriesByDate(date: string): Promise<MemoryResponse> {
+    return this.request<MemoryResponse>(`/memory/${date}`, {
+      method: 'GET',
     });
   }
 

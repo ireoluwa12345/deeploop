@@ -50,3 +50,39 @@ func (q *Queries) CreateContent(ctx context.Context, arg CreateContentParams) (C
 	)
 	return i, err
 }
+
+const getContentByMemoryID = `-- name: GetContentByMemoryID :many
+SELECT id, memory_id, content_type, created_at, updated_at, content_url, content, metadata FROM content WHERE memory_id = $1
+`
+
+func (q *Queries) GetContentByMemoryID(ctx context.Context, memoryID uuid.UUID) ([]Content, error) {
+	rows, err := q.db.QueryContext(ctx, getContentByMemoryID, memoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Content
+	for rows.Next() {
+		var i Content
+		if err := rows.Scan(
+			&i.ID,
+			&i.MemoryID,
+			&i.ContentType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContentUrl,
+			&i.Content,
+			&i.Metadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

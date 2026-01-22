@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	ACCESS_TOKEN_EXPIRY  = "86000s"
+	ACCESS_TOKEN_EXPIRY  = "860s"
 	REFRESH_TOKEN_EXPIRY = 60 * 24
 )
 

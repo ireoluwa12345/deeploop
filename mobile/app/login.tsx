@@ -22,7 +22,7 @@ const JournalLoginScreen = () => {
 
   useEffect(() => {
     if (!loading && isLoggedIn) {
-      router.replace('/');
+      router.push('/');
     }
   }, [loading, isLoggedIn, router]);
 

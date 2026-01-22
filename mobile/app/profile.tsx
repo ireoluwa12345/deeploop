@@ -3,12 +3,19 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, Switch, Di
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter } from 'expo-router';
+import { useAuth } from './context/auth';
 import { Colors } from './styles';
 
 const { width } = Dimensions.get('window');
 
 const ProfileScreen = () => {
     const router = useRouter();
+    const { logout } = useAuth();
+
+    const handleLogout = async () => {
+        await logout();
+        router.replace('/welcome');
+    };
 
     return (
         <View style={styles.container}>
@@ -95,7 +102,7 @@ const ProfileScreen = () => {
                 </View>
 
                 {/* Sign Out */}
-                <TouchableOpacity style={styles.signOutButton}>
+                <TouchableOpacity style={styles.signOutButton} onPress={handleLogout}>
                     <Icon name="logout" size={24} color={Colors.error} />
                     <Text style={styles.signOutText}>Sign Out</Text>
                 </TouchableOpacity>

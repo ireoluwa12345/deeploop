@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Image, Platform } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Image, Platform, TextInput, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { CameraView, useCameraPermissions, CameraType, FlashMode } from 'expo-camera';
 import { useRouter } from "expo-router";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from './styles';
 import { apiService } from "./utils/api";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import BottomNavBar from "@/components/home/BottomNavBar";
 
 const SnapScreen = () => {
     const router = useRouter();
@@ -15,6 +17,7 @@ const SnapScreen = () => {
     const [facing, setFacing] = useState<CameraType>('back');
     const [flash, setFlash] = useState<FlashMode>('off');
     const [isSaving, setIsSaving] = useState(false);
+    const [caption, setCaption] = useState('');
 
     useEffect(() => {
         if (!permission) {
@@ -63,6 +66,8 @@ const SnapScreen = () => {
 
     const retakePicture = () => {
         setPhoto(null);
+        setCaption('');
+        setIsSaving(false);
     };
 
     const savePicture = async () => {
@@ -73,37 +78,82 @@ const SnapScreen = () => {
             const formData = new FormData();
             const type = `image`;
 
-            formData.append("file", photo)
-            formData.append("content_type", type)
+            const filename = photo.split('/').pop() || 'photo.jpg';
+
+            // @ts-ignore
+            formData.append("file", {
+                uri: photo,
+                name: filename,
+                type: 'image/jpeg',
+            });
+            formData.append("content_type", type);
+            if (caption) {
+                formData.append("content", caption);
+            }
 
             await apiService.createMemory(formData);
             router.back();
         } catch (error) {
-            console.error("Failed to save memory:", error);
-            // Ideally show a toast or alert here
+            Alert.alert("Error", "Failed to save memory");
         } finally {
             setIsSaving(false);
         }
     };
 
+    // --- REVIEW UI ---
     if (photo) {
         return (
-            <View style={styles.container}>
-                <Image source={{ uri: photo }} style={styles.preview} />
-                <View style={styles.overlay}>
-                    <TouchableOpacity onPress={retakePicture} style={styles.actionButton}>
-                        <Icon name="refresh" size={32} color="#FFF" />
-                        <Text style={styles.actionText}>Retake</Text>
+            <View style={styles.reviewContainer}>
+                <SafeAreaView style={styles.reviewHeader}>
+                    <TouchableOpacity onPress={retakePicture} style={styles.closeButtonReview}>
+                        <Icon name="close" size={24} color={Colors.text} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={savePicture} disabled={isSaving} style={[styles.actionButton, styles.saveButton]}>
-                        <Icon name={isSaving ? "loading" : "check"} size={32} color="#FFF" />
-                        <Text style={styles.actionText}>{isSaving ? "Saving..." : "Save"}</Text>
+                    <Text style={styles.reviewTitle}>REVIEW</Text>
+                    <View style={{ width: 24 }} />
+                </SafeAreaView>
+
+                <KeyboardAwareScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.imagePreviewContainer}>
+                        <Image source={{ uri: photo }} style={styles.imagePreview} />
+                    </View>
+
+                    <View style={styles.captionContainer}>
+                        <Text style={styles.captionLabel}>ADD A CAPTION...</Text>
+                        <View style={styles.captionInputWrapper}>
+                            <TextInput
+                                style={styles.captionInput}
+                                placeholder="Capture the feeling of this moment..."
+                                placeholderTextColor="#AAA"
+                                multiline
+                                value={caption}
+                                onChangeText={setCaption}
+                            />
+                        </View>
+                    </View>
+                </KeyboardAwareScrollView>
+
+                <View style={styles.reviewFooter}>
+                    <TouchableOpacity onPress={retakePicture} style={styles.retakeButton}>
+                        <Icon name="refresh" size={20} color={Colors.secondary} />
+                        <Text style={[styles.retakeText, { color: Colors.secondary }]}>RETAKE</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={savePicture} disabled={isSaving} style={styles.saveButtonReview}>
+                        {isSaving ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                            <Text style={styles.saveTextReview}>SAVE</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
+
+                {/* Bottom Nav */}
+                {/* <BottomNavBar /> */}
             </View>
         )
     }
 
+    // --- CAMERA UI ---
     return (
         <View style={styles.container}>
             <CameraView style={styles.camera} facing={facing} flash={flash} ref={cameraRef}>
@@ -186,7 +236,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingTop: 20,
+        paddingTop: 50, // Increased to shift X down
     },
 
     iconButton: {
@@ -259,33 +309,119 @@ const styles = StyleSheet.create({
         borderRadius: 24,
     },
 
-    preview: {
+    // Review UI Styles
+    reviewContainer: {
         flex: 1,
+        backgroundColor: '#F2EFEC', // Beige background
     },
-    overlay: {
-        position: 'absolute',
-        bottom: 40,
-        left: 0,
-        right: 0,
+    reviewHeader: {
         flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 40,
-    },
-    actionButton: {
+        justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingBottom: 10,
+        backgroundColor: '#F2EFEC',
+        marginTop: 80, // Increased further to shift X down
     },
-    saveButton: {
-
+    closeButtonReview: {
+        padding: 12, // Increased touch target
+        borderRadius: 20,
+        backgroundColor: '#FFF',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
     },
-    actionText: {
-        color: Colors.surface,
-        marginTop: 4,
+    reviewTitle: {
+        fontSize: 14,
         fontWeight: 'bold',
-        shadowColor: '#000',
-        shadowOpacity: 0.8,
-        shadowRadius: 2,
-        shadowOffset: { width: 0, height: 1 }
-    }
+        letterSpacing: 2,
+        color: '#666',
+    },
+    reviewContent: {
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        paddingBottom: 40,
+    },
+    imagePreviewContainer: {
+        width: '100%',
+        aspectRatio: 3 / 4,
+        borderRadius: 20,
+        overflow: 'hidden',
+        marginBottom: 24,
+        backgroundColor: '#DDD',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    imagePreview: {
+        width: '100%',
+        height: '100%',
+    },
+    captionContainer: {
+        marginBottom: 20,
+    },
+    captionLabel: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        letterSpacing: 1.5,
+        color: '#666',
+        marginBottom: 10,
+        marginLeft: 4,
+    },
+    captionInputWrapper: {
+        backgroundColor: '#F8F6F4',
+        borderRadius: 16,
+        padding: 16,
+        minHeight: 100,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.03)',
+    },
+    captionInput: {
+        fontSize: 16,
+        color: '#333',
+        fontStyle: 'italic',
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    },
+    reviewFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 30,
+        paddingVertical: 20,
+    },
+    retakeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 10,
+    },
+    retakeText: {
+        marginLeft: 8,
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.textSecondary,
+        letterSpacing: 1,
+    },
+    saveButtonReview: {
+        backgroundColor: Colors.primary, // Terracotta
+        paddingVertical: 14,
+        paddingHorizontal: 40,
+        borderRadius: 12,
+        shadowColor: Colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    saveTextReview: {
+        color: '#FFF',
+        fontSize: 14,
+        fontWeight: 'bold',
+        letterSpacing: 2,
+    },
 });
 
 export default SnapScreen;
