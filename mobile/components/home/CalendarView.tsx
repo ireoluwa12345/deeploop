@@ -8,35 +8,101 @@ const { width } = Dimensions.get("window");
 
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
-// Mock data for the calendar based on the image design
-const CALENDAR_DATA = [
-    { day: null }, { day: null }, { day: null }, { day: null }, { day: 1 }, { day: 2, hasEntry: true }, { day: 3 },
-    { day: 4, hasEntry: true }, { day: 5, hasEntry: true }, { day: 6 }, { day: 7 }, { day: 8, hasEntry: true }, { day: 9, hasEntry: true }, { day: 10 },
-    { day: 11 }, { day: 12 }, { day: 13, hasEntry: true }, { day: 14 }, { day: 15 }, { day: 16, isSelected: true }, { day: 17 },
-    { day: 18, isFuture: true }, { day: 19, isFuture: true }, { day: 20, isFuture: true }, { day: 21, isFuture: true }, { day: 22, isFuture: true }, { day: 23, isFuture: true }, { day: 24, isFuture: true },
-    { day: 25, isFuture: true }, { day: 26, isFuture: true }, { day: 27, isFuture: true }, { day: 28, isFuture: true }, { day: 29, isFuture: true }, { day: 30, isFuture: true }, { day: 31, isFuture: true },
-];
+interface CalendarViewProps {
+    currentDate: Date;
+    onChangeMonth: (increment: number) => void;
+}
 
-const CalendarView = () => {
+interface CalendarItem {
+    day: number | null;
+    hasEntry?: boolean;
+    isSelected?: boolean;
+    isFuture?: boolean;
+}
+
+const CalendarView = ({ currentDate, onChangeMonth }: CalendarViewProps) => {
     const router = useRouter();
 
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+
     const handleDayPress = (day: number) => {
-        router.push({ pathname: "/timeline", params: { date: `OCTOBER ${day}TH` } });
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const dayStr = String(day).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${dayStr}`;
+        router.push({ pathname: "/timeline", params: { date: formattedDate } });
     };
+
+    // Generate calendar grid data
+    const generateCalendarData = () => {
+        const data: CalendarItem[] = [];
+
+        for (let i = 0; i < firstDayOfMonth; i++) {
+            data.push({ day: null });
+        }
+
+        const today = new Date();
+        const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
+        const currentDay = today.getDate();
+
+        for (let i = 1; i <= daysInMonth; i++) {
+            const hasEntry = Math.random() > 0.6;
+
+            data.push({
+                day: i,
+                hasEntry: hasEntry,
+                isSelected: isCurrentMonth && i === currentDay,
+                isFuture: false
+            });
+        }
+
+        const realToday = new Date();
+        realToday.setHours(0, 0, 0, 0);
+
+        data.forEach(item => {
+            if (!item.day) {
+                item.isFuture = false;
+                item.hasEntry = false;
+                item.isSelected = false;
+                return;
+            }
+
+            const itemDate = new Date(year, month, item.day);
+            itemDate.setHours(0, 0, 0, 0);
+
+            if (itemDate > realToday) {
+                item.isFuture = true;
+                item.hasEntry = false;
+                item.isSelected = false;
+            } else {
+                item.isFuture = false;
+                if (itemDate.getTime() === realToday.getTime()) {
+                    item.isSelected = true;
+                }
+            }
+        });
+
+        return data;
+    };
+
+    const calendarData = generateCalendarData();
 
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity>
+                <TouchableOpacity onPress={() => onChangeMonth(-1)}>
                     <Icon name="chevron-left" size={24} color="#888" />
                 </TouchableOpacity>
                 <Text style={styles.viewTitle}>MONTH VIEW</Text>
-                <TouchableOpacity>
+                <TouchableOpacity onPress={() => onChangeMonth(1)}>
                     <Icon name="chevron-right" size={24} color="#888" />
                 </TouchableOpacity>
             </View>
 
-            {/* Days of Week */}
             <View style={styles.weekRow}>
                 {DAYS.map((d, index) => (
                     <Text key={index} style={styles.dayLabel}>
@@ -47,9 +113,9 @@ const CalendarView = () => {
 
             {/* Calendar Grid */}
             <View style={styles.grid}>
-                {CALENDAR_DATA.map((item, index) => (
+                {calendarData.map((item, index) => (
                     <View key={index} style={styles.dayCell}>
-                        {item.day && (
+                        {item.day ? (
                             <TouchableOpacity
                                 onPress={() => handleDayPress(item.day!)}
                                 disabled={item.isFuture}
@@ -57,7 +123,7 @@ const CalendarView = () => {
                                     styles.dayCircle,
                                     item.hasEntry && styles.hasEntryCircle,
                                     item.isSelected && styles.selectedCircle,
-                                    item.isFuture && { opacity: 0.5 } // Optional visual feedback
+                                    item.isFuture && { opacity: 0.3 }
                                 ]}
                             >
                                 <Text
@@ -73,6 +139,8 @@ const CalendarView = () => {
                                 {/* Dot for selected day if needed, or visual accent */}
                                 {item.isSelected && <View style={styles.selectedDot} />}
                             </TouchableOpacity>
+                        ) : (
+                            <View style={{ width: 36, height: 36 }} /> // Placeholder
                         )}
                     </View>
                 ))}
@@ -144,6 +212,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 4,
+        zIndex: 10,
     },
     dayText: {
         fontSize: 14,

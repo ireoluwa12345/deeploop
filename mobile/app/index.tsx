@@ -15,12 +15,21 @@ export default function Index() {
   const { isLoggedIn, loading } = useAuth();
   const router = useRouter();
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   useEffect(() => {
     if (!loading && !isLoggedIn) {
       router.push("/welcome");
     }
   }, [isLoggedIn, loading, router]);
+
+  const changeMonth = (increment: number) => {
+    setCurrentDate(prevDate => {
+      const newDate = new Date(prevDate);
+      newDate.setMonth(newDate.getMonth() + increment);
+      return newDate;
+    });
+  };
 
   if (loading) {
     return (
@@ -41,8 +50,8 @@ export default function Index() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 80 }}
       >
-        <HomeHeader month="October" year="2023" />
-        <CalendarView />
+        <HomeHeader currentDate={currentDate} />
+        <CalendarView currentDate={currentDate} onChangeMonth={changeMonth} />
         <StatsRow />
         <DailyPromptCard />
       </ScrollView>

@@ -3,16 +3,18 @@ import { StyleSheet, Text, View, TouchableOpacity, Image } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 interface HomeHeaderProps {
-    month: string;
-    year: string;
+    currentDate: Date;
 }
 
-const HomeHeader = ({ month, year }: HomeHeaderProps) => {
+const HomeHeader = ({ currentDate }: HomeHeaderProps) => {
+    const month = currentDate.toLocaleString('default', { month: 'long' });
+    const year = currentDate.getFullYear();
+
     return (
         <View style={styles.container}>
             {/* Date Title */}
             <View>
-                <Text style={styles.monthText}>{month}</Text>
+                <Text style={styles.monthText}>{month.toUpperCase()}</Text>
                 <Text style={styles.yearText}>{year}</Text>
             </View>
 

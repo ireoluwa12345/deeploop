@@ -183,7 +183,10 @@ const RecordScreen = () => {
 
             <View style={styles.content}>
 
-                <Text style={styles.sessionInfo}>SESSION ACTIVE • OCT 24</Text>
+                <Text style={styles.sessionInfo}>SESSION ACTIVE • {new Date().toLocaleDateString("en-US", {
+                    month: "short",
+                    year: "2-digit"
+                }).toUpperCase()}</Text>
 
                 {/* Status or Playback Info */}
                 {!recordingUri ? (
@@ -202,23 +205,6 @@ const RecordScreen = () => {
                 <Text style={styles.timerText}>
                     {recordingUri ? formatTime(playbackPosition) : formatTime(recordingTime)}
                 </Text>
-
-                {/* Visualization Placeholder */}
-                <View style={styles.waveformContainer}>
-                    {meteringLevels.map((level, i) => (
-                        <View
-                            key={i}
-                            style={[
-                                styles.waveBar,
-                                {
-                                    height: Math.max(4, level * 50), // Scale height
-                                    opacity: (isRecording || isPlaying) ? 1 : 0.3,
-                                    backgroundColor: (recordingUri && isPlaying && (i / 30) < (playbackPosition / playbackDuration)) ? Colors.primary : Colors.secondary // Progress coloring optional but nice
-                                }
-                            ]}
-                        />
-                    ))}
-                </View>
 
                 {/* Controls */}
                 <View style={styles.controlsContainer}>

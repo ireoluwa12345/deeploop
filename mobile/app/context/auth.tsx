@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { apiService, LoginRequest, ApiError, RegisterRequest } from '../utils/api';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await apiService.login(credentials);
       await AsyncStorage.setItem('userToken', response.token);
       setIsLoggedIn(true);
+      await SecureStore.setItemAsync('refreshToken', response.refresh_token);
       return { success: true };
     } catch (error) {
       const message = error instanceof ApiError ? error.error : 'Login failed';

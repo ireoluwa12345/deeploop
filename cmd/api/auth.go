@@ -11,17 +11,12 @@ import (
 )
 
 func (app *application) HandleRefresh(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("refresh_token")
+	refreshTokenString, err := auth.GetBearerToken(r.Header)
+
 	if err != nil {
-		if err == http.ErrNoCookie {
-			http.Error(w, "No refresh token found", http.StatusUnauthorized)
-			return
-		}
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		app.respondWithError(w, http.StatusUnauthorized, "missing or invalid token", err)
 		return
 	}
-
-	refreshTokenString := cookie.Value
 
 	refreshToken, err := app.db.GetRefreshTokenByToken(context.Background(), refreshTokenString)
 

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
@@ -48,20 +49,20 @@ type ContentType = {
   created_at: string;
   updated_at: string;
   metadata: string;
-} 
+}
 
-  /**
-   * Makes an HTTP request to the specified endpoint.
-   * 
-   * @template T - The expected response type
-   * @param endpoint - The API endpoint path to request
-   * @param options - Optional fetch RequestInit configuration (headers, method, body, etc.)
-   * @returns A promise that resolves with the parsed response data of type T
-   * @throws {ApiError} Throws an ApiError if the response is not ok or if a network error occurs
-   * 
-   * @example
-   * const data = await apiService.request<User>('/users/123');
-   */
+/**
+ * Makes an HTTP request to the specified endpoint.
+ * 
+ * @template T - The expected response type
+ * @param endpoint - The API endpoint path to request
+ * @param options - Optional fetch RequestInit configuration (headers, method, body, etc.)
+ * @returns A promise that resolves with the parsed response data of type T
+ * @throws {ApiError} Throws an ApiError if the response is not ok or if a network error occurs
+ * 
+ * @example
+ * const data = await apiService.request<User>('/users/123');
+ */
 
 class ApiService {
   private baseURL: string;
@@ -79,23 +80,27 @@ class ApiService {
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    isRetry = false
+    isRetry = false,
+    passAuthToken: boolean = true
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
 
     const isFormData = options.body instanceof FormData;
     const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers,
+      'Content-Type': 'application/json',
+      'credentials': "include",
+      ...options.headers,
     } as Record<string, string>;
 
     if (isFormData) {
-        delete headers['Content-Type'];
+      delete headers['Content-Type'];
     }
 
-    const token = await AsyncStorage.getItem('userToken');
-    if (token) {
+    if (passAuthToken) {
+      const token = await AsyncStorage.getItem('userToken');
+      if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+      }
     }
 
     const config: RequestInit = {
@@ -108,19 +113,19 @@ class ApiService {
 
       if (!response.ok) {
         if (response.status === 401 && !isRetry) {
-             try {
-                const refreshResponse = await this.refreshToken();
-                if (refreshResponse && refreshResponse.token) {
-                    await AsyncStorage.setItem('userToken', refreshResponse.token);
-                    return this.request<T>(endpoint, options, true);
-                }
-             } catch (refreshError) {
-                 this.onLogout?.();
-             }
-        }
-        
-        if (response.status === 401) {
+          try {
+            const refreshResponse = await this.refreshToken();
+            if (refreshResponse && refreshResponse.token) {
+              await AsyncStorage.setItem('userToken', refreshResponse.token);
+              return this.request<T>(endpoint, options, true);
+            }
+          } catch (refreshError) {
             this.onLogout?.();
+          }
+        }
+
+        if (response.status === 401) {
+          this.onLogout?.();
         }
 
         const errorData = await response.json().catch(() => ({}));
@@ -137,23 +142,28 @@ class ApiService {
   }
 
   async refreshToken(): Promise<{ token: string }> {
+    const refreshToken = await SecureStore.getItemAsync('refreshToken')
+    console.log(refreshToken)
     return this.request<{ token: string }>('/auth/refresh', {
-        method: 'POST',
-    }, true);
+      method: 'POST',
+      headers: {
+        "Authorization": `Bearer ${refreshToken}`
+      }
+    }, true, false);
   }
 
   async login(data: LoginRequest): Promise<LoginResponse> {
     return this.request<LoginResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
-    });
+    }, false, false);
   }
 
   async register(data: RegisterRequest): Promise<RegisterResponse> {
     return this.request<RegisterResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
-    });
+    }, false, false);
   }
 
   async createMemory(data: FormData): Promise<MemoryResponse> {

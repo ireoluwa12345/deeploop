@@ -145,25 +145,14 @@ func (app *application) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	refreshCookie := http.Cookie{
-		Name:     "refresh_token",
-		Value:    storedRefreshToken.Token,
-		Path:     "/auth/refresh",
-		MaxAge:   3600 * 24 * 7,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-	}
-
-	http.SetCookie(w, &refreshCookie)
-
 	response := map[string]interface{}{
-		"id":         user.ID,
-		"created_at": user.CreatedAt,
-		"updated_at": user.UpdatedAt,
-		"email":      user.Email,
-		"name":       user.Name,
-		"token":      accessToken,
+		"id":            user.ID,
+		"created_at":    user.CreatedAt,
+		"updated_at":    user.UpdatedAt,
+		"email":         user.Email,
+		"name":          user.Name,
+		"token":         accessToken,
+		"refresh_token": storedRefreshToken.Token,
 	}
 
 	app.respondWithJSON(w, http.StatusOK, response)

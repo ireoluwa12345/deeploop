@@ -210,7 +210,11 @@ func (app *application) getMemoryWithDate(w http.ResponseWriter, r *http.Request
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			app.respondWithError(w, http.StatusNotFound, "memory not found", err)
+			app.respondWithJSON(w, http.StatusOK, map[string]interface{}{
+				"entry_date": memory.Date,
+				"id":         memory.ID,
+				"content":    []map[string]interface{}{},
+			})
 			return
 		}
 		app.respondWithError(w, http.StatusInternalServerError, "couldn't get memory", err)
@@ -226,7 +230,6 @@ func (app *application) getMemoryWithDate(w http.ResponseWriter, r *http.Request
 			app.respondWithError(w, http.StatusInternalServerError, "couldn't get file presigned url", err)
 			return
 		}
-		fmt.Println(c.ContentUrl.String)
 		contentResponse = append(contentResponse, map[string]interface{}{
 			"id":           c.ID,
 			"content":      c.Content,
@@ -249,7 +252,6 @@ func (app *application) getMemoryWithDate(w http.ResponseWriter, r *http.Request
 
 func (app *application) getPresignerUrlFromDBUrl(content database.Content) (database.Content, error) {
 	urlData := strings.Split(content.ContentUrl.String, ",")
-	fmt.Printf("%v", urlData)
 	if len(urlData) != 2 {
 		return content, errors.New("invalid presigned url")
 	}
@@ -263,8 +265,6 @@ func (app *application) getPresignerUrlFromDBUrl(content database.Content) (data
 	if err != nil {
 		return content, err
 	}
-
-	fmt.Println("Generated presigned URL:", url)
 
 	content.ContentUrl = sql.NullString{
 		String: url,

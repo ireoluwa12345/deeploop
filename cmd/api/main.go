@@ -84,7 +84,7 @@ func main() {
 	apiMux.HandleFunc("GET /healthz", app.handleHealthz)
 	apiMux.HandleFunc("POST /auth/login", app.HandleLogin)
 	apiMux.HandleFunc("POST /auth/register", app.HandleRegister)
-	// apiMux.HandleFunc("POST /auth/refresh", app.HandleRefresh)
+	apiMux.HandleFunc("POST /auth/refresh", app.HandleRefresh)
 	apiMux.HandleFunc("POST /memory", app.middlewareRequireAuth(app.uploadMemory))
 	apiMux.HandleFunc("GET /memory/{date}", app.middlewareRequireAuth(app.getMemoryWithDate))
 
