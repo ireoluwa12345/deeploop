@@ -65,18 +65,21 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 	mediaType, _, err := mime.ParseMediaType(handler.Header.Get("Content-Type"))
 	ext := filepath.Ext(handler.Filename)
 
+	fmt.Println(mediaType)
+	fmt.Println(params.ContentType)
+
 	if err != nil {
-		app.respondWithError(w, http.StatusBadRequest, "invalid file", nil)
+		app.respondWithError(w, http.StatusBadRequest, "invalid file", errors.New("invalid file"))
 		return
 	}
 
 	if params.ContentType == "audio" && !strings.HasPrefix(mediaType, "audio/") {
-		app.respondWithError(w, http.StatusBadRequest, "uploaded non audio file", nil)
+		app.respondWithError(w, http.StatusBadRequest, "uploaded non audio file", errors.New("uploaded non audio file"))
 		return
 	}
 
 	if params.ContentType == "image" && !strings.HasPrefix(mediaType, "image/") {
-		app.respondWithError(w, http.StatusBadRequest, "uploaded non image file", nil)
+		app.respondWithError(w, http.StatusBadRequest, "uploaded non image file", errors.New("uploaded non image file"))
 		return
 	}
 
@@ -265,6 +268,8 @@ func (app *application) getPresignerUrlFromDBUrl(content database.Content) (data
 	if err != nil {
 		return content, err
 	}
+
+	fmt.Println(url)
 
 	content.ContentUrl = sql.NullString{
 		String: url,

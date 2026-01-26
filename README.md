@@ -32,21 +32,20 @@ Whether you're a mindfulness practitioner, therapist, or simply someone who want
 - PostgreSQL database
 
 ### Backend Setup
-1. Navigate to the backend directory:
-   ```bash
-   cd cmd/api
-   ```
-
-2. Install Go dependencies:
+1. Install Go dependencies:
    ```bash
    go mod tidy
    ```
 
-3. Set up PostgreSQL database and run migrations
-
-4. Start the backend server:
+2. Set up PostgreSQL database and run migrations
    ```bash
-   go run main.go
+   make migrate/api
+   ```
+   Input the postgres sql url when prompted
+
+3. Start the backend server:
+   ```bash
+   make watch/api
    ```
 
 ### Mobile App Setup

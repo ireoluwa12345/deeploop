@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
 import { Audio } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter } from 'expo-router';
 import { Colors } from './styles';
+import { randomString } from './utils/helper';
+import { apiService } from "./utils/api";
 
 const { width } = Dimensions.get('window');
 
@@ -20,6 +22,7 @@ const RecordScreen = () => {
     const [playbackPosition, setPlaybackPosition] = useState(0);
     const [playbackDuration, setPlaybackDuration] = useState(0);
     const [meteringLevels, setMeteringLevels] = useState<number[]>(new Array(30).fill(0.1));
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         let interval: any;
@@ -148,8 +151,31 @@ const RecordScreen = () => {
         if (sound) sound.unloadAsync();
     };
 
-    const saveRecording = () => {
-        // TODO: Persist audio
+    const saveRecording = async() => {
+            if (!recordingUri) return;
+
+        setIsSaving(true);
+        try {
+            const formData = new FormData();
+            const type = `audio`;
+
+            const filename = randomString() + '.mp4';
+
+            // @ts-ignore
+            formData.append("file", {
+                uri: recordingUri,
+                name: filename,
+                type: 'audio/mp4',
+            });
+            formData.append("content_type", type);
+
+            await apiService.createMemory(formData);
+            router.push("/timeline");
+        } catch (error) {
+            Alert.alert("Error", "Failed to save memory");
+        } finally {
+            setIsSaving(false);
+        }
         router.back();
     };
 

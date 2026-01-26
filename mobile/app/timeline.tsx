@@ -5,6 +5,7 @@ import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from './styles';
 import { apiService, MemoryResponse } from './utils/api';
+import { Audio } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 
@@ -13,6 +14,8 @@ const TimelineScreen = () => {
     const { date } = useLocalSearchParams();
     const [memories, setMemories] = useState<MemoryResponse>();
     const [loading, setLoading] = useState(true);
+    const [sound, setSound] = useState<Audio.Sound>();
+    const [playingId, setPlayingId] = useState<string | null>(null);
 
     // Date handling
     const getLocalDate = () => {
@@ -55,8 +58,97 @@ const TimelineScreen = () => {
         fetchMemories();
     }, [rawDate]);
 
+    useEffect(() => {
+        return () => {
+            if (sound) {
+                console.log('Unloading Sound');
+                sound.unloadAsync();
+            }
+        };
+    }, [sound]);
+
+    const playSound = async (uri: string, id: string) => {
+        if (playingId === id && sound) {
+            await sound.pauseAsync();
+            setPlayingId(null);
+            return;
+        }
+
+        if (sound) {
+            await sound.unloadAsync();
+        }
+
+        console.log('Loading Sound');
+        const { sound: newSound } = await Audio.Sound.createAsync({ uri });
+        setSound(newSound);
+        setPlayingId(id);
+
+        console.log('Playing Sound');
+        await newSound.playAsync();
+
+        newSound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded && status.didJustFinish) {
+                setPlayingId(null);
+            }
+        });
+    };
+
     const formatTime = (isoString: string) => {
         return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getTypeConfig = (type: string) => {
+        switch (type) {
+            case 'audio':
+                return { icon: 'microphone', label: 'AUDIO', color: '#E91E63' };
+            case 'text':
+                return { icon: 'notebook-outline', label: 'NOTE', color: '#FFC107' };
+            case 'image':
+            default:
+                return { icon: 'camera-outline', label: 'SNAP', color: '#555' };
+        }
+    };
+
+    const renderContent = (entry: any) => {
+        switch (entry.content_type) {
+            case 'audio':
+                const isPlaying = playingId === entry.id;
+                return (
+                    <View style={styles.audioCard}>
+                        <TouchableOpacity
+                            style={styles.playButton}
+                            onPress={() => playSound(entry.content_url, entry.id)}
+                        >
+                            <Icon name={isPlaying ? "pause" : "play"} size={24} color="#FFF" />
+                        </TouchableOpacity>
+                        <View style={styles.audioWaveform}>
+                            <View style={[styles.bar, { height: 12 }]} />
+                            <View style={[styles.bar, { height: 20 }]} />
+                            <View style={[styles.bar, { height: 16 }]} />
+                            <View style={[styles.bar, { height: 24 }]} />
+                            <View style={[styles.bar, { height: 10 }]} />
+                            <View style={[styles.bar, { height: 18 }]} />
+                        </View>
+                        <Text style={styles.audioDuration}>00:30</Text>
+                        {/* Placeholder duration, real app would need metadata */}
+                    </View>
+                );
+            case 'text':
+                return (
+                    <View style={styles.textCard}>
+                        <Text style={styles.textContent}>{entry.content}</Text>
+                    </View>
+                );
+            case 'image':
+            default:
+                return (
+                    <View style={styles.card}>
+                        <View>
+                            <Image source={{ uri: entry.content_url }} style={styles.snapImage} />
+                        </View>
+                    </View>
+                );
+        }
     };
 
     return (
@@ -90,32 +182,32 @@ const TimelineScreen = () => {
                         {/* Vertical Line Spine */}
                         <View style={styles.spine} />
 
-                        {memories?.content.map((entry, index) => (
-                            <View key={entry.id} style={styles.entryRow}>
-                                {/* Time & Icon Column */}
-                                <View style={styles.metaColumn}>
-                                    <View style={styles.iconContainer}>
-                                        <Icon
-                                            name="camera-outline" // Assuming all are snaps for now
-                                            size={20}
-                                            color="#555"
-                                        />
-                                    </View>
-                                </View>
-
-                                {/* Content Column */}
-                                <View style={styles.contentColumn}>
-                                    <Text style={styles.metaText}>{formatTime(entry.created_at)} — SNAP</Text>
-
-                                    <View style={styles.card}>
-                                        <View>
-                                            <Image source={{ uri: entry.content_url }} style={styles.snapImage} />
-                                            {/* Assuming API response might have caption later, for now just image */}
+                        {memories?.content.map((entry, index) => {
+                            const config = getTypeConfig(entry.content_type);
+                            return (
+                                <View key={entry.id} style={styles.entryRow}>
+                                    {/* Time & Icon Column */}
+                                    <View style={styles.metaColumn}>
+                                        <View style={[styles.iconContainer, { borderColor: config.color }]}>
+                                            <Icon
+                                                name={config.icon as any}
+                                                size={20}
+                                                color={config.color}
+                                            />
                                         </View>
                                     </View>
+
+                                    {/* Content Column */}
+                                    <View style={styles.contentColumn}>
+                                        <Text style={[styles.metaText, { color: config.color }]}>
+                                            {formatTime(entry.created_at)} — {config.label}
+                                        </Text>
+
+                                        {renderContent(entry)}
+                                    </View>
                                 </View>
-                            </View>
-                        ))}
+                            );
+                        })}
                     </View>
                 )}
             </ScrollView>
@@ -180,8 +272,7 @@ const styles = StyleSheet.create({
         height: 32,
         borderRadius: 16,
         backgroundColor: Colors.background,
-        borderWidth: 1,
-        borderColor: Colors.border,
+        borderWidth: 1.5,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -190,7 +281,6 @@ const styles = StyleSheet.create({
     },
     metaText: {
         fontSize: 12,
-        color: Colors.textSecondary,
         fontWeight: 'bold',
         letterSpacing: 1,
         marginBottom: 8,
@@ -210,7 +300,6 @@ const styles = StyleSheet.create({
         width: '100%',
         height: 200,
         borderRadius: 12,
-        marginBottom: 8,
         backgroundColor: '#EEE'
     },
     fab: {
@@ -249,6 +338,64 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
         textAlign: 'center',
         lineHeight: 20,
+    },
+    audioCard: {
+        backgroundColor: Colors.surface,
+        borderRadius: 16,
+        padding: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    playButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#E91E63',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    audioWaveform: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginRight: 12,
+        height: 30,
+    },
+    bar: {
+        width: 4,
+        backgroundColor: '#E91E63',
+        borderRadius: 2,
+        opacity: 0.5,
+    },
+    audioDuration: {
+        fontSize: 12,
+        color: Colors.textSecondary,
+        fontVariant: ['tabular-nums'],
+    },
+    textCard: {
+        backgroundColor: '#FFF9C4', // Post-it note color
+        borderRadius: 12, // Slightly less rounded for a note look
+        padding: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+        borderLeftWidth: 4,
+        borderLeftColor: '#FFC107'
+    },
+    textContent: {
+        fontSize: 16,
+        color: '#4A4A4A',
+        lineHeight: 24,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     }
 });
 

@@ -92,7 +92,7 @@ const SnapScreen = () => {
             }
 
             await apiService.createMemory(formData);
-            router.back();
+            router.push("/timeline");
         } catch (error) {
             Alert.alert("Error", "Failed to save memory");
         } finally {

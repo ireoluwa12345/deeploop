@@ -10,4 +10,13 @@ function validateEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
-export { statementCase, validateEmail };
+function randomString(length = 10) {
+  const charset = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return result;
+}
+
+export { statementCase, validateEmail, randomString };
