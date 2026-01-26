@@ -56,9 +56,7 @@ Whether you're a mindfulness practitioner, therapist, or simply someone who want
 
 2. Install dependencies:
    ```bash
-   npm install
-   # or
-   yarn install
+   bun install
    ```
 
 3. Configure environment variables:
@@ -69,15 +67,11 @@ Whether you're a mindfulness practitioner, therapist, or simply someone who want
 
 4. Start the development server:
    ```bash
-   npm start
-   # or
-   expo start
+   bun start
    ```
 
 5. Run on device/emulator:
-   - For iOS: `expo start --ios`
-   - For Android: `expo start --android`
-   - Or scan QR code with Expo Go app
+   - scan QR code with Expo Go app
 
 ### Usage
 1. Register a new account or log in

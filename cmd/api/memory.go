@@ -8,10 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"mime"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,6 +19,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/ireoluwa12345/memory-keeper/internal/database"
+	"golang.org/x/sync/errgroup"
 )
 
 func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
@@ -65,9 +64,6 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 	mediaType, _, err := mime.ParseMediaType(handler.Header.Get("Content-Type"))
 	ext := filepath.Ext(handler.Filename)
 
-	fmt.Println(mediaType)
-	fmt.Println(params.ContentType)
-
 	if err != nil {
 		app.respondWithError(w, http.StatusBadRequest, "invalid file", errors.New("invalid file"))
 		return
@@ -83,25 +79,6 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tempFileName := fmt.Sprintf("%s%s", params.ContentType, ext)
-	tempFile, err := os.CreateTemp("", tempFileName)
-	if err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "failed to create temp file", err)
-		return
-	}
-	defer os.Remove(tempFile.Name())
-	defer tempFile.Close()
-
-	if _, err := io.Copy(tempFile, file); err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "couldn't write file to disk", err)
-		return
-	}
-
-	if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "couldn't seek file", err)
-		return
-	}
-
 	randBytes := make([]byte, 32)
 	if _, err := rand.Read(randBytes); err != nil {
 		app.respondWithError(w, http.StatusInternalServerError, "couldn't generate random key", err)
@@ -109,43 +86,53 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 	}
 	key := fmt.Sprintf("%s%s", hex.EncodeToString(randBytes), ext)
 
-	_, err = app.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
-		Bucket:      aws.String(app.s3Bucket),
-		Key:         aws.String(key),
-		Body:        tempFile,
-		ContentType: aws.String(mediaType),
+	g, ctx := errgroup.WithContext(r.Context())
+
+	g.Go(func() error {
+		_, err := app.s3Client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket:      aws.String(app.s3Bucket),
+			Key:         aws.String(key),
+			Body:        file,
+			ContentType: aws.String(mediaType),
+		})
+		return err
 	})
 
-	if err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "couldn't upload file to s3", err)
-		return
-	}
-
-	// return time.Time
 	currentDate := time.Now()
+	var memory database.Memory
 
-	memory, err := app.db.GetMemoryByUserIDAndDate(context.Background(), database.GetMemoryByUserIDAndDateParams{
-		UserID: userID,
-		Date:   currentDate,
+	g.Go(func() error {
+
+		memory, err = app.db.GetMemoryByUserIDAndDate(ctx, database.GetMemoryByUserIDAndDateParams{
+			UserID: userID,
+			Date:   currentDate,
+		})
+
+		if err != nil {
+			if err == sql.ErrNoRows {
+				id := uuid.New()
+				memory, err = app.db.CreateMemory(ctx, database.CreateMemoryParams{
+					ID:     id,
+					UserID: userID,
+					Date:   currentDate,
+				})
+
+				if err != nil {
+					return fmt.Errorf("couldn't create memory: %v", err)
+				}
+			} else {
+				return fmt.Errorf("couldn't get memory: %v", err)
+			}
+		}
+
+		return nil
 	})
 
-	if err != nil {
-		if err == sql.ErrNoRows {
-			id := uuid.New()
-			memory, err = app.db.CreateMemory(r.Context(), database.CreateMemoryParams{
-				ID:     id,
-				UserID: userID,
-				Date:   currentDate,
-			})
+	err = g.Wait()
 
-			if err != nil {
-				app.respondWithError(w, http.StatusInternalServerError, "couldn't create memory", err)
-				return
-			}
-		} else {
-			app.respondWithError(w, http.StatusInternalServerError, "couldn't get memory", err)
-			return
-		}
+	if err != nil {
+		app.respondWithError(w, http.StatusInternalServerError, "error processing request", err)
+		return
 	}
 
 	metadata := map[string]string{}
@@ -268,8 +255,6 @@ func (app *application) getPresignerUrlFromDBUrl(content database.Content) (data
 	if err != nil {
 		return content, err
 	}
-
-	fmt.Println(url)
 
 	content.ContentUrl = sql.NullString{
 		String: url,
