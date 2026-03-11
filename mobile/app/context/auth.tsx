@@ -2,7 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { apiService, LoginRequest, ApiError, RegisterRequest } from '../utils/api';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+
+interface UserInfo {
+  id: string;
+  name: string;
+  email: string;
+  profile_image: string;
+  created_at: string;
+}
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -11,8 +18,11 @@ interface AuthContextType {
   loginError: string | null;
   registerLoading: boolean;
   registerError: string | null;
+  user: UserInfo | null;
   login: (credentials: LoginRequest) => Promise<{ success: boolean; error?: string }>;
+  googleLogin: (idToken: string) => Promise<{ success: boolean; error?: string }>;
   register: (credentials: RegisterRequest) => Promise<{ success: boolean; error?: string }>;
+  updateUser: (userInfo: UserInfo) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -23,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [user, setUser] = useState<UserInfo | null>(null);
 
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
@@ -32,6 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkAuth = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
+        const storedUser = await AsyncStorage.getItem('userInfo');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
         setIsLoggedIn(!!token);
       } catch (error) {
         console.error('Error checking auth:', error);
@@ -50,8 +65,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await apiService.login(credentials);
       await AsyncStorage.setItem('userToken', response.token);
+
+      const userInfo: UserInfo = {
+        id: response.id,
+        name: response.name,
+        email: response.email,
+        profile_image: response.profile_image || '',
+        created_at: response.created_at,
+      };
+      await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+      setUser(userInfo);
+
       setIsLoggedIn(true);
-      await SecureStore.setItemAsync('refreshToken', response.refresh_token);
+      await AsyncStorage.setItem('refreshToken', response.refresh_token);
       return { success: true };
     } catch (error) {
       const message = error instanceof ApiError ? error.error : 'Login failed';
@@ -79,11 +105,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const googleLogin = async (idToken: string) => {
+    setLoginLoading(true);
+    setLoginError(null);
+
+    try {
+      const response = await apiService.googleLogin(idToken);
+      await AsyncStorage.setItem('userToken', response.token);
+
+      const userInfo: UserInfo = {
+        id: response.id,
+        name: response.name,
+        email: response.email,
+        profile_image: response.profile_image || '',
+        created_at: response.created_at,
+      };
+      await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+      setUser(userInfo);
+
+      setIsLoggedIn(true);
+      await AsyncStorage.setItem('refreshToken', response.refresh_token);
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof ApiError ? error.error : 'Google login failed';
+      setLoginError(message);
+      return { success: false, error: message };
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const updateUser = async (userInfo: UserInfo) => {
+    await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+    setUser(userInfo);
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userInfo');
+      setUser(null);
       setIsLoggedIn(false);
-      // Main navigation logic will react to state change in layout
     } catch (error) {
       console.error('Error during logout:', error);
     }
@@ -98,8 +160,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginError,
         registerLoading,
         registerError,
+        user,
         login,
+        googleLogin,
         register,
+        updateUser,
         logout,
       }}
     >

@@ -2,6 +2,8 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
+const FONT_FAMILY = 'JetBrainsMono_400Regular';
+
 const DailyPromptCard = () => {
     return (
         <View style={styles.container}>
@@ -59,7 +61,7 @@ const styles = StyleSheet.create({
         color: "#333",
         lineHeight: 28,
         fontWeight: "500",
-        fontFamily: "System", // Ideally use a serif font for prompt
+        fontFamily: FONT_FAMILY,
         marginBottom: 24,
     },
     emptyStateText: {

@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 )
@@ -16,14 +17,14 @@ INSERT INTO users (id, email, password, name, created_at, updated_at)
 VALUES (
     $1, $2, $3, $4, NOW(), NOW()
 ) 
-RETURNING id, email, password, name, created_at, updated_at
+RETURNING id, email, profile_image, password, name, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	ID       uuid.UUID `json:"id"`
-	Email    string    `json:"email"`
-	Password string    `json:"password"`
-	Name     string    `json:"name"`
+	ID       uuid.UUID      `json:"id"`
+	Email    string         `json:"email"`
+	Password sql.NullString `json:"password"`
+	Name     string         `json:"name"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -37,6 +38,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
+		&i.ProfileImage,
 		&i.Password,
 		&i.Name,
 		&i.CreatedAt,
@@ -46,7 +48,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password, name, created_at, updated_at FROM users WHERE email = $1
+SELECT id, email, profile_image, password, name, created_at, updated_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -55,6 +57,53 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
+		&i.ProfileImage,
+		&i.Password,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, email, profile_image, password, name, created_at, updated_at FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.ProfileImage,
+		&i.Password,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users SET name = $2, profile_image = $3, updated_at = NOW()
+WHERE id = $1
+RETURNING id, email, profile_image, password, name, created_at, updated_at
+`
+
+type UpdateUserProfileParams struct {
+	ID           uuid.UUID      `json:"id"`
+	Name         string         `json:"name"`
+	ProfileImage sql.NullString `json:"profile_image"`
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserProfile, arg.ID, arg.Name, arg.ProfileImage)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.ProfileImage,
 		&i.Password,
 		&i.Name,
 		&i.CreatedAt,

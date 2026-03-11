@@ -1,4 +1,4 @@
-import { StyleSheet, Platform } from "react-native";
+import { StyleSheet } from "react-native";
 
 export const Colors = {
   background: '#F9F9F9', // Creamy off-white (Global app background)
@@ -10,6 +10,13 @@ export const Colors = {
   border: '#E0E0E0',
   error: '#CC3333',
   errorBackground: '#FFEEEE',
+};
+
+const FONT_FAMILY = 'JetBrainsMono_400Regular';
+
+export const Fonts = {
+  app: FONT_FAMILY,
+  serif: FONT_FAMILY,
 };
 
 const styles = StyleSheet.create({
@@ -34,7 +41,7 @@ const styles = StyleSheet.create({
     fontWeight: '900', // Extra bold
     color: Colors.text,
     letterSpacing: -1, // Tight tracking
-    fontFamily: Platform.OS === 'ios' ? 'Arial Black' : 'Roboto',
+    fontFamily: FONT_FAMILY,
   },
   appSubtitle: {
     fontSize: 12,

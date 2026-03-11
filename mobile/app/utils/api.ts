@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
@@ -14,6 +13,7 @@ export interface LoginResponse {
   updated_at: string;
   email: string;
   name: string;
+  profile_image: string;
   refresh_token: string;
   id: string;
 }
@@ -22,6 +22,7 @@ type user = {
   id: string;
   email: string;
   name: string;
+  profile_image: string;
   created_at: string;
   updated_at: string;
 }
@@ -39,6 +40,17 @@ export interface RegisterResponse {
 export interface MemoryResponse {
   id: string;
   content: ContentType[]
+}
+
+export interface CalendarResponse {
+  year: number;
+  month: number;
+  entry_days: number[];
+}
+
+export interface StatsResponse {
+  total_entries: number;
+  streak: number;
 }
 
 type ContentType = {
@@ -142,7 +154,7 @@ class ApiService {
   }
 
   async refreshToken(): Promise<{ token: string }> {
-    const refreshToken = await SecureStore.getItemAsync('refreshToken')
+    const refreshToken = await AsyncStorage.getItem('refreshToken')
     console.log(refreshToken)
     return this.request<{ token: string }>('/auth/refresh', {
       method: 'POST',
@@ -176,6 +188,47 @@ class ApiService {
   async getMemoriesByDate(date: string): Promise<MemoryResponse> {
     return this.request<MemoryResponse>(`/memory/${date}`, {
       method: 'GET',
+    });
+  }
+
+  async getCalendarDates(year: number, month: number): Promise<CalendarResponse> {
+    return this.request<CalendarResponse>(`/memory/calendar/${year}/${month}`, {
+      method: 'GET',
+    });
+  }
+
+  async getUserStats(): Promise<StatsResponse> {
+    return this.request<StatsResponse>('/memory/stats', {
+      method: 'GET',
+    });
+  }
+
+  async googleLogin(idToken: string): Promise<LoginResponse> {
+    return this.request<LoginResponse>('/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: idToken }),
+    });
+  }
+
+  async updateProfile(name: string, profileImageUri?: string): Promise<user> {
+    const formData = new FormData();
+    formData.append('name', name);
+
+    if (profileImageUri) {
+      const filename = profileImageUri.split('/').pop() || 'profile.jpg';
+      const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+      formData.append('profile_image', {
+        uri: profileImageUri,
+        name: filename,
+        type: mimeType,
+      } as any);
+    }
+
+    return this.request<user>('/auth/profile', {
+      method: 'PUT',
+      body: formData,
     });
   }
 

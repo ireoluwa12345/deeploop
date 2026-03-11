@@ -1,13 +1,13 @@
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Text, View, ScrollView, StatusBar, TouchableOpacity, StyleSheet } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAuth } from "./context/auth";
+import { apiService } from "./utils/api";
 import HomeHeader from "@/components/home/HomeHeader";
 import CalendarView from "@/components/home/CalendarView";
 import StatsRow from "@/components/home/StatsRow";
-import DailyPromptCard from "@/components/home/DailyPromptCard";
 import BottomNavBar from "@/components/home/BottomNavBar";
 import EntrySelectionOverlay from "@/components/home/EntrySelectionOverlay";
 
@@ -16,12 +16,55 @@ export default function Index() {
   const router = useRouter();
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [entryDays, setEntryDays] = useState<number[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && !isLoggedIn) {
       router.push("/welcome");
     }
   }, [isLoggedIn, loading, router]);
+
+  const fetchCalendarDates = useCallback(async () => {
+    if (!isLoggedIn) return;
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1; // JS months are 0-indexed
+    setCalendarLoading(true);
+    try {
+      const response = await apiService.getCalendarDates(year, month);
+      setEntryDays(response.entry_days || []);
+    } catch (error) {
+      console.error("Error fetching calendar dates:", error);
+      setEntryDays([]);
+    } finally {
+      setCalendarLoading(false);
+    }
+  }, [currentDate, isLoggedIn]);
+
+  useEffect(() => {
+    fetchCalendarDates();
+  }, [fetchCalendarDates]);
+
+  const fetchStats = useCallback(async () => {
+    if (!isLoggedIn) return;
+    setStatsLoading(true);
+    try {
+      const response = await apiService.getUserStats();
+      setStreak(response.streak);
+      setTotalEntries(response.total_entries);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const changeMonth = (increment: number) => {
     setCurrentDate(prevDate => {
@@ -51,9 +94,8 @@ export default function Index() {
         contentContainerStyle={{ paddingBottom: 80 }}
       >
         <HomeHeader currentDate={currentDate} />
-        <CalendarView currentDate={currentDate} onChangeMonth={changeMonth} />
-        <StatsRow />
-        <DailyPromptCard />
+        <CalendarView currentDate={currentDate} onChangeMonth={changeMonth} entryDays={entryDays} loading={calendarLoading} />
+        <StatsRow streak={streak} totalEntries={totalEntries} loading={statsLoading} />
       </ScrollView>
       <TouchableOpacity
         style={styles.fab}

@@ -5,6 +5,8 @@ import { useRouter } from "expo-router";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from './styles';
+
+const FONT_FAMILY = 'JetBrainsMono_400Regular';
 import { apiService } from "./utils/api";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import BottomNavBar from "@/components/home/BottomNavBar";
@@ -92,7 +94,9 @@ const SnapScreen = () => {
             }
 
             await apiService.createMemory(formData);
-            router.push("/timeline");
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            router.replace({ pathname: "/timeline", params: { date: dateStr } });
         } catch (error) {
             Alert.alert("Error", "Failed to save memory");
         } finally {
@@ -321,7 +325,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingBottom: 10,
         backgroundColor: '#F2EFEC',
-        marginTop: 80, // Increased further to shift X down
+        marginTop: 40,
     },
     closeButtonReview: {
         padding: 12, // Increased touch target
@@ -384,7 +388,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
         fontStyle: 'italic',
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        fontFamily: FONT_FAMILY,
     },
     reviewFooter: {
         flexDirection: 'row',

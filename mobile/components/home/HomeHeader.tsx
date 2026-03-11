@@ -1,17 +1,22 @@
 import React from "react";
 import { StyleSheet, Text, View, TouchableOpacity, Image } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+
+const FONT_FAMILY = 'JetBrainsMono_400Regular';
 
 interface HomeHeaderProps {
     currentDate: Date;
 }
 
 const HomeHeader = ({ currentDate }: HomeHeaderProps) => {
+    const router = useRouter();
     const month = currentDate.toLocaleString('default', { month: 'long' });
     const year = currentDate.getFullYear();
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             {/* Date Title */}
             <View>
                 <Text style={styles.monthText}>{month.toUpperCase()}</Text>
@@ -20,17 +25,13 @@ const HomeHeader = ({ currentDate }: HomeHeaderProps) => {
 
             {/* Actions */}
             <View style={styles.actionsContainer}>
-                <TouchableOpacity style={styles.iconButton}>
-                    <Icon name="magnify" size={26} color="#1A1A1A" />
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.profileButton}>
+                <TouchableOpacity style={styles.profileButton} onPress={() => router.push('/profile')}>
                     <View style={styles.avatarPlaceholder}>
                         <Icon name="account" size={24} color="#555" />
                     </View>
                 </TouchableOpacity>
             </View>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -40,15 +41,15 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "center",
         paddingHorizontal: 24,
-        paddingTop: 60, // Adjust for status bar
-        paddingBottom: 20,
+        paddingTop: 16,
+        paddingBottom: 12,
         backgroundColor: "#F9F9F9",
     },
     monthText: {
         fontSize: 32,
         fontWeight: "bold",
         color: "#1A1A1A",
-        fontFamily: "JetBrainsMono_400Regular", // Using the font we know exists
+        fontFamily: FONT_FAMILY,
         letterSpacing: -1,
     },
     yearText: {

@@ -7,6 +7,7 @@ import {
   Platform,
   StatusBar,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import {
   useFonts,
@@ -16,20 +17,48 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "./context/auth";
+
+const FONT_FAMILY = 'JetBrainsMono_400Regular';
 import { useEffect } from "react";
+import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
+
+WebBrowser.maybeCompleteAuthSession();
 
 const { width, height } = Dimensions.get("window");
 
 const LoginScreen = () => {
   const router = useRouter();
-  const { isLoggedIn, loading } = useAuth();
+  const { isLoggedIn, loading, googleLogin, loginLoading } = useAuth();
   let [fontsLoaded] = useFonts({ JetBrainsMono_400Regular });
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_IOS_GOOGLE_CLIENT_ID,
+  });
 
   useEffect(() => {
     if (!loading && isLoggedIn) {
       router.replace('/');
     }
   }, [loading, isLoggedIn, router]);
+
+  useEffect(() => {
+    const handleGoogleResponse = async () => {
+      if (response?.type === 'success') {
+        const { id_token } = response.params;
+        if (id_token) {
+          const result = await googleLogin(id_token);
+          if (!result.success) {
+            Alert.alert('Login Failed', result.error || 'Google login failed');
+          }
+        }
+      }
+    };
+
+    handleGoogleResponse();
+  }, [response]);
 
   if (!fontsLoaded || loading) {
     return (
@@ -56,25 +85,25 @@ const LoginScreen = () => {
 
         {/* --- BOTTOM SECTION --- */}
         <View style={styles.bottomContainer}>
-          {/* Third Party Logins - Google & Apple */}
-          <TouchableOpacity style={styles.socialButton}>
-            <Icon
-              name="google"
-              size={24}
-              color="#000"
-              style={styles.socialIcon}
-            />
-            <Text style={styles.socialBtnText}>Continue with Google</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.socialButton}>
-            <Icon
-              name="apple"
-              size={24}
-              color="#000"
-              style={styles.socialIcon}
-            />
-            <Text style={styles.socialBtnText}>Continue with Apple</Text>
+          {/* Google Login */}
+          <TouchableOpacity
+            style={styles.socialButton}
+            onPress={() => promptAsync()}
+            disabled={!request || loginLoading}
+          >
+            {loginLoading ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <>
+                <Icon
+                  name="google"
+                  size={24}
+                  color="#000"
+                  style={styles.socialIcon}
+                />
+                <Text style={styles.socialBtnText}>Continue with Google</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           {/* Email Login Link */}
@@ -125,8 +154,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontSize: 42,
-    fontFamily:
-      Platform.OS === "ios" ? "JetBrainsMono_400Regular" : "monospace",
+    fontFamily: FONT_FAMILY,
     fontWeight: "500",
     textAlign: "center",
     color: "#1A1A1A",

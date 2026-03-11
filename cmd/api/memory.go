@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,51 +54,57 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, handler, err := r.FormFile("file")
+	var file multipart.File
+	var handler *multipart.FileHeader
+	var mediaType, ext, key string
 
-	if err != nil {
-		app.respondWithError(w, http.StatusBadRequest, "invalid file", nil)
-		return
+	if params.ContentType != "text" {
+		file, handler, err = r.FormFile("file")
+		if err != nil {
+			app.respondWithError(w, http.StatusBadRequest, "invalid file", nil)
+			return
+		}
+		defer file.Close()
+
+		mediaType, _, err = mime.ParseMediaType(handler.Header.Get("Content-Type"))
+		ext = filepath.Ext(handler.Filename)
+
+		if err != nil {
+			app.respondWithError(w, http.StatusBadRequest, "invalid file", errors.New("invalid file"))
+			return
+		}
+
+		if params.ContentType == "audio" && !strings.HasPrefix(mediaType, "audio/") {
+			app.respondWithError(w, http.StatusBadRequest, "uploaded non audio file", errors.New("uploaded non audio file"))
+			return
+		}
+
+		if params.ContentType == "image" && !strings.HasPrefix(mediaType, "image/") {
+			app.respondWithError(w, http.StatusBadRequest, "uploaded non image file", errors.New("uploaded non image file"))
+			return
+		}
+
+		randBytes := make([]byte, 32)
+		if _, err := rand.Read(randBytes); err != nil {
+			app.respondWithError(w, http.StatusInternalServerError, "couldn't generate random key", err)
+			return
+		}
+		key = fmt.Sprintf("%s%s", hex.EncodeToString(randBytes), ext)
 	}
-
-	defer file.Close()
-
-	mediaType, _, err := mime.ParseMediaType(handler.Header.Get("Content-Type"))
-	ext := filepath.Ext(handler.Filename)
-
-	if err != nil {
-		app.respondWithError(w, http.StatusBadRequest, "invalid file", errors.New("invalid file"))
-		return
-	}
-
-	if params.ContentType == "audio" && !strings.HasPrefix(mediaType, "audio/") {
-		app.respondWithError(w, http.StatusBadRequest, "uploaded non audio file", errors.New("uploaded non audio file"))
-		return
-	}
-
-	if params.ContentType == "image" && !strings.HasPrefix(mediaType, "image/") {
-		app.respondWithError(w, http.StatusBadRequest, "uploaded non image file", errors.New("uploaded non image file"))
-		return
-	}
-
-	randBytes := make([]byte, 32)
-	if _, err := rand.Read(randBytes); err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "couldn't generate random key", err)
-		return
-	}
-	key := fmt.Sprintf("%s%s", hex.EncodeToString(randBytes), ext)
 
 	g, ctx := errgroup.WithContext(r.Context())
 
-	g.Go(func() error {
-		_, err := app.s3Client.PutObject(ctx, &s3.PutObjectInput{
-			Bucket:      aws.String(app.s3Bucket),
-			Key:         aws.String(key),
-			Body:        file,
-			ContentType: aws.String(mediaType),
+	if params.ContentType != "text" {
+		g.Go(func() error {
+			_, err := app.s3Client.PutObject(ctx, &s3.PutObjectInput{
+				Bucket:      aws.String(app.s3Bucket),
+				Key:         aws.String(key),
+				Body:        file,
+				ContentType: aws.String(mediaType),
+			})
+			return err
 		})
-		return err
-	})
+	}
 
 	currentDate := time.Now()
 	var memory database.Memory
@@ -143,12 +151,17 @@ func (app *application) uploadMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	contentUrl := ""
+	if params.ContentType != "text" {
+		contentUrl = fmt.Sprintf("%s,%s", app.s3Bucket, key)
+	}
+
 	content, err := app.db.CreateContent(context.Background(), database.CreateContentParams{
 		ID:       uuid.New(),
 		MemoryID: memory.ID,
 		ContentUrl: sql.NullString{
-			String: fmt.Sprintf("%s,%s", app.s3Bucket, key),
-			Valid:  true,
+			String: contentUrl,
+			Valid:  contentUrl != "",
 		},
 		Content:     params.Content,
 		ContentType: database.ContentType(params.ContentType),
@@ -235,6 +248,96 @@ func (app *application) getMemoryWithDate(w http.ResponseWriter, r *http.Request
 		"entry_date": memory.Date,
 		"id":         memory.ID,
 		"content":    contentResponse,
+	}
+
+	app.respondWithJSON(w, http.StatusOK, response)
+}
+
+func (app *application) getCalendarDates(w http.ResponseWriter, r *http.Request) {
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		app.respondWithError(w, http.StatusUnauthorized, "user not authenticated", nil)
+		return
+	}
+
+	yearStr := r.PathValue("year")
+	monthStr := r.PathValue("month")
+
+	year, err := strconv.Atoi(yearStr)
+	if err != nil {
+		app.respondWithError(w, http.StatusBadRequest, "invalid year", err)
+		return
+	}
+
+	month, err := strconv.Atoi(monthStr)
+	if err != nil || month < 1 || month > 12 {
+		app.respondWithError(w, http.StatusBadRequest, "invalid month", err)
+		return
+	}
+
+	startOfMonth := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	startOfNextMonth := startOfMonth.AddDate(0, 1, 0)
+
+	dates, err := app.db.GetMemoryDatesByMonth(r.Context(), database.GetMemoryDatesByMonthParams{
+		UserID: userID,
+		Date:   startOfMonth,
+		Date_2: startOfNextMonth,
+	})
+	if err != nil {
+		app.respondWithError(w, http.StatusInternalServerError, "couldn't get calendar dates", err)
+		return
+	}
+
+	entryDays := make([]int, 0, len(dates))
+	for _, d := range dates {
+		entryDays = append(entryDays, d.Day())
+	}
+
+	response := map[string]interface{}{
+		"year":       year,
+		"month":      month,
+		"entry_days": entryDays,
+	}
+
+	app.respondWithJSON(w, http.StatusOK, response)
+}
+
+func (app *application) getUserStats(w http.ResponseWriter, r *http.Request) {
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok {
+		app.respondWithError(w, http.StatusUnauthorized, "user not authenticated", nil)
+		return
+	}
+
+	totalEntries, err := app.db.GetTotalContentCountByUserID(r.Context(), userID)
+	if err != nil {
+		app.respondWithError(w, http.StatusInternalServerError, "couldn't get total entries", err)
+		return
+	}
+
+	dates, err := app.db.GetAllMemoryDatesByUserID(r.Context(), userID)
+	if err != nil {
+		app.respondWithError(w, http.StatusInternalServerError, "couldn't get memory dates", err)
+		return
+	}
+
+	// Calculate streak: count consecutive days ending at today
+	streak := 0
+	today := time.Now().Truncate(24 * time.Hour)
+
+	for i, d := range dates {
+		expectedDate := today.AddDate(0, 0, -i)
+		entryDate := d.Truncate(24 * time.Hour)
+		if entryDate.Equal(expectedDate) {
+			streak++
+		} else {
+			break
+		}
+	}
+
+	response := map[string]interface{}{
+		"total_entries": totalEntries,
+		"streak":        streak,
 	}
 
 	app.respondWithJSON(w, http.StatusOK, response)

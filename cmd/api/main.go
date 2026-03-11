@@ -1,18 +1,59 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/ireoluwa12345/memory-keeper/internal/database"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/rs/cors"
 )
+
+var accessLog *os.File
+
+func init() {
+	var err error
+	accessLog, err = os.OpenFile("access.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal("Failed to open access.log:", err)
+	}
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(rw, r)
+		logEntry := fmt.Sprintf("[%s] %s %s %d %v | response: %s\n", r.Method, r.URL.Path, r.RemoteAddr, rw.statusCode, time.Since(start), rw.body.String())
+		accessLog.WriteString(logEntry)
+		fmt.Print(logEntry)
+	})
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+	body       bytes.Buffer
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	rw.body.Write(b)
+	return rw.ResponseWriter.Write(b)
+}
 
 type application struct {
 	infoLog          *log.Logger
@@ -85,14 +126,25 @@ func main() {
 	apiMux.HandleFunc("POST /auth/login", app.HandleLogin)
 	apiMux.HandleFunc("POST /auth/register", app.HandleRegister)
 	apiMux.HandleFunc("POST /auth/refresh", app.HandleRefresh)
+	apiMux.HandleFunc("POST /auth/google", app.HandleGoogleLogin)
+	apiMux.HandleFunc("PUT /auth/profile", app.middlewareRequireAuth(app.HandleUpdateProfile))
 	apiMux.HandleFunc("POST /memory", app.middlewareRequireAuth(app.uploadMemory))
+	apiMux.HandleFunc("GET /memory/stats", app.middlewareRequireAuth(app.getUserStats))
+	apiMux.HandleFunc("GET /memory/calendar/{year}/{month}", app.middlewareRequireAuth(app.getCalendarDates))
 	apiMux.HandleFunc("GET /memory/{date}", app.middlewareRequireAuth(app.getMemoryWithDate))
 
 	mux.Handle("/api/", http.StripPrefix("/api", apiMux))
 
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: true,
+	})
+
 	srv := &http.Server{
 		Addr:    ":" + host,
-		Handler: mux,
+		Handler: c.Handler(loggingMiddleware(mux)),
 	}
 
 	app.infoLog.Println("Server started on port 1219")

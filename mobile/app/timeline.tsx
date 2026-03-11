@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform } from 'react-native';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform, Modal, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from './styles';
+
+const FONT_FAMILY = 'JetBrainsMono_400Regular';
 import { apiService, MemoryResponse } from './utils/api';
 import { Audio } from 'expo-av';
 
@@ -14,8 +16,18 @@ const TimelineScreen = () => {
     const { date } = useLocalSearchParams();
     const [memories, setMemories] = useState<MemoryResponse>();
     const [loading, setLoading] = useState(true);
-    const [sound, setSound] = useState<Audio.Sound>();
     const [playingId, setPlayingId] = useState<string | null>(null);
+    const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+    const [playbackProgress, setPlaybackProgress] = useState<{ [key: string]: number }>({});
+    const [audioDuration, setAudioDuration] = useState<{ [key: string]: number }>({});
+    const [audioLoading, setAudioLoading] = useState<string | null>(null);
+    const audioCache = useRef<{ [id: string]: Audio.Sound }>({});
+    const flatListRef = useRef<FlatList>(null);
+
+    const imageEntries = useMemo(() => {
+        if (!memories?.content) return [];
+        return memories.content.filter(e => e.content_type === 'image');
+    }, [memories]);
 
     // Date handling
     const getLocalDate = () => {
@@ -60,41 +72,75 @@ const TimelineScreen = () => {
 
     useEffect(() => {
         return () => {
-            if (sound) {
-                console.log('Unloading Sound');
+            Object.values(audioCache.current).forEach(sound => {
                 sound.unloadAsync();
-            }
+            });
+            audioCache.current = {};
         };
-    }, [sound]);
+    }, []);
 
     const playSound = async (uri: string, id: string) => {
-        if (playingId === id && sound) {
-            await sound.pauseAsync();
-            setPlayingId(null);
+        const cachedSound = audioCache.current[id];
+
+        if (cachedSound) {
+            const status = await cachedSound.getStatusAsync();
+            if (status.isLoaded && status.isPlaying) {
+                await cachedSound.pauseAsync();
+                setPlayingId(null);
+            } else if (status.isLoaded) {
+                const position = status.positionMillis || 0;
+                const dur = status.durationMillis || 30000;
+                if (position >= dur - 100) {
+                    await cachedSound.setPositionAsync(0);
+                    setPlaybackProgress(prev => ({ ...prev, [id]: 0 }));
+                }
+                await cachedSound.playAsync();
+                setPlayingId(id);
+            }
             return;
         }
 
-        if (sound) {
-            await sound.unloadAsync();
-        }
+        setAudioLoading(id);
 
-        console.log('Loading Sound');
-        const { sound: newSound } = await Audio.Sound.createAsync({ uri });
-        setSound(newSound);
-        setPlayingId(id);
+        try {
+            const { sound: newSound } = await Audio.Sound.createAsync({ uri });
+            audioCache.current[id] = newSound;
+            setPlayingId(id);
+            setAudioLoading(null);
 
-        console.log('Playing Sound');
-        await newSound.playAsync();
-
-        newSound.setOnPlaybackStatusUpdate((status) => {
-            if (status.isLoaded && status.didJustFinish) {
-                setPlayingId(null);
+            const status = await newSound.getStatusAsync();
+            if (status.isLoaded) {
+                setAudioDuration(prev => ({ ...prev, [id]: status.durationMillis || 30000 }));
             }
-        });
+
+            newSound.setOnPlaybackStatusUpdate((status) => {
+                if (status.isLoaded) {
+                    if (status.positionMillis !== undefined) {
+                        setPlaybackProgress(prev => ({ ...prev, [id]: status.positionMillis }));
+                    }
+                    if (status.didJustFinish) {
+                        setPlayingId(null);
+                        setPlaybackProgress(prev => ({ ...prev, [id]: 0 }));
+                    }
+                }
+            });
+
+            await newSound.playAsync();
+        } catch (error) {
+            console.error('Failed to load audio:', error);
+            setAudioLoading(null);
+        }
     };
 
     const formatTime = (isoString: string) => {
         return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const formatDuration = (ms: number) => {
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     };
 
     const getTypeConfig = (type: string) => {
@@ -113,24 +159,54 @@ const TimelineScreen = () => {
         switch (entry.content_type) {
             case 'audio':
                 const isPlaying = playingId === entry.id;
+                const isLoading = audioLoading === entry.id;
+                const progress = playbackProgress[entry.id] || 0;
+                const duration = audioDuration[entry.id] || 30000;
+                const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
+                const waveformBars = [
+                    { height: 10 }, { height: 18 }, { height: 14 }, { height: 22 },
+                    { height: 16 }, { height: 26 }, { height: 12 }, { height: 20 },
+                    { height: 8 }, { height: 24 }, { height: 18 }, { height: 14 },
+                    { height: 22 }, { height: 10 }, { height: 16 }, { height: 20 },
+                    { height: 12 }, { height: 18 }, { height: 24 }, { height: 14 },
+                ];
                 return (
-                    <View style={styles.audioCard}>
-                        <TouchableOpacity
-                            style={styles.playButton}
-                            onPress={() => playSound(entry.content_url, entry.id)}
-                        >
-                            <Icon name={isPlaying ? "pause" : "play"} size={24} color="#FFF" />
-                        </TouchableOpacity>
-                        <View style={styles.audioWaveform}>
-                            <View style={[styles.bar, { height: 12 }]} />
-                            <View style={[styles.bar, { height: 20 }]} />
-                            <View style={[styles.bar, { height: 16 }]} />
-                            <View style={[styles.bar, { height: 24 }]} />
-                            <View style={[styles.bar, { height: 10 }]} />
-                            <View style={[styles.bar, { height: 18 }]} />
+                    <View>
+                        {entry.content ? (
+                            <Text style={styles.captionText}>{entry.content}</Text>
+                        ) : null}
+                        <View style={styles.audioCard}>
+                            <TouchableOpacity
+                                style={[styles.playButton, isPlaying && styles.playButtonActive, isLoading && styles.playButtonLoading]}
+                                onPress={() => !isLoading && playSound(entry.content_url, entry.id)}
+                                disabled={isLoading}
+                            >
+                                {isLoading ? (
+                                    <ActivityIndicator size="small" color="#FFF" />
+                                ) : (
+                                    <Icon name={isPlaying ? "pause" : "play"} size={18} color="#FFF" />
+                                )}
+                            </TouchableOpacity>
+                            <View style={styles.audioWaveformContainer}>
+                                <View style={styles.audioWaveform}>
+                                    {waveformBars.map((bar, idx) => (
+                                        <View
+                                            key={idx}
+                                            style={[
+                                                styles.bar,
+                                                { height: bar.height },
+                                                isPlaying && styles.barActive,
+                                                progressPercent > (idx / waveformBars.length) * 100 && styles.barPlayed,
+                                            ]}
+                                        />
+                                    ))}
+                                </View>
+                                <View style={styles.audioTimeRow}>
+                                    <Text style={styles.audioCurrentTime}>{formatDuration(progress)}</Text>
+                                    <Text style={styles.audioDuration}>{formatDuration(duration)}</Text>
+                                </View>
+                            </View>
                         </View>
-                        <Text style={styles.audioDuration}>00:30</Text>
-                        {/* Placeholder duration, real app would need metadata */}
                     </View>
                 );
             case 'text':
@@ -141,11 +217,19 @@ const TimelineScreen = () => {
                 );
             case 'image':
             default:
+                const imageIdx = imageEntries.findIndex(e => e.id === entry.id);
                 return (
-                    <View style={styles.card}>
-                        <View>
+                    <View>
+                        {entry.content ? (
+                            <Text style={styles.captionText}>{entry.content}</Text>
+                        ) : null}
+                        <TouchableOpacity
+                            style={styles.card}
+                            activeOpacity={0.9}
+                            onPress={() => setViewerIndex(imageIdx >= 0 ? imageIdx : 0)}
+                        >
                             <Image source={{ uri: entry.content_url }} style={styles.snapImage} />
-                        </View>
+                        </TouchableOpacity>
                     </View>
                 );
         }
@@ -158,7 +242,7 @@ const TimelineScreen = () => {
                     <Icon name="chevron-left" size={32} color="#1A1A1A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{formattedDisplayDate}</Text>
-                <TouchableOpacity style={styles.iconButton}>
+                <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/')}>
                     <Icon name="calendar-month-outline" size={28} color="#1A1A1A" />
                 </TouchableOpacity>
             </SafeAreaView>
@@ -212,9 +296,55 @@ const TimelineScreen = () => {
                 )}
             </ScrollView>
 
-            <TouchableOpacity style={styles.fab} onPress={() => router.push('/snap')}>
-                <Icon name="plus" size={32} color="#FFF" />
-            </TouchableOpacity>
+            {/* Fullscreen Image Viewer */}
+            <Modal visible={viewerIndex !== null} animationType="slide" onRequestClose={() => setViewerIndex(null)}>
+                <SafeAreaView style={styles.modalContainer}>
+                    <View style={styles.modalHeader}>
+                        <TouchableOpacity onPress={() => setViewerIndex(null)} style={styles.iconButton}>
+                            <Icon name="arrow-left" size={24} color="#1A1A1A" />
+                        </TouchableOpacity>
+                        <Text style={styles.modalHeaderTitle}>{formattedDisplayDate} GALLERY</Text>
+                        <View style={{ width: 32 }} />
+                    </View>
+
+                    <FlatList
+                        ref={flatListRef}
+                        data={imageEntries}
+                        keyExtractor={(item) => item.id}
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        initialScrollIndex={viewerIndex ?? 0}
+                        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
+                        onMomentumScrollEnd={(e) => {
+                            if (viewerIndex === null) return;
+                            const idx = Math.round(e.nativeEvent.contentOffset.x / width);
+                            setViewerIndex(idx);
+                        }}
+                        contentContainerStyle={{ alignItems: 'center' }}
+                        renderItem={({ item }) => (
+                            <View style={styles.modalSlide}>
+                                <Image source={{ uri: item.content_url }} style={styles.modalImage} resizeMode="cover" />
+                                {item.content ? (
+                                    <Text style={styles.modalCaption}>{item.content}</Text>
+                                ) : null}
+                                <Text style={styles.modalTimeLabel}>
+                                    {formatTime(item.created_at)} • SNAP
+                                </Text>
+                            </View>
+                        )}
+                    />
+
+                    {/* Page indicator dots */}
+                    {imageEntries.length > 1 && (
+                        <View style={styles.dotsContainer}>
+                            {imageEntries.map((_, i) => (
+                                <View key={i} style={[styles.dot, i === (viewerIndex ?? 0) && styles.dotActive]} />
+                            ))}
+                        </View>
+                    )}
+                </SafeAreaView>
+            </Modal>
         </View>
     );
 };
@@ -229,7 +359,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingBottom: 20,
+        paddingBottom: 12,
     },
     iconButton: {
         padding: 4,
@@ -327,7 +457,7 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 18,
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        fontFamily: FONT_FAMILY,
         fontStyle: 'italic',
         color: Colors.text,
         marginBottom: 10,
@@ -350,32 +480,62 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 8,
         elevation: 2,
+        borderWidth: 1,
+        borderColor: 'rgba(233, 30, 99, 0.15)',
     },
     playButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#E91E63',
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(233, 30, 99, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: 14,
+    },
+    playButtonActive: {
+        backgroundColor: '#E91E63',
+    },
+    playButtonLoading: {
+        backgroundColor: 'rgba(233, 30, 99, 0.5)',
+    },
+    audioWaveformContainer: {
+        flex: 1,
+        justifyContent: 'center',
     },
     audioWaveform: {
-        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        marginRight: 12,
-        height: 30,
+        justifyContent: 'space-between',
+        height: 28,
+        marginBottom: 6,
     },
     bar: {
-        width: 4,
+        flex: 1,
+        maxWidth: 6,
         backgroundColor: '#E91E63',
         borderRadius: 2,
-        opacity: 0.5,
+        opacity: 0.25,
+        marginHorizontal: 1,
+    },
+    barActive: {
+        opacity: 0.6,
+    },
+    barPlayed: {
+        backgroundColor: '#E91E63',
+        opacity: 1,
+    },
+    audioTimeRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    audioCurrentTime: {
+        fontSize: 11,
+        color: '#E91E63',
+        fontWeight: '600',
+        fontVariant: ['tabular-nums'],
     },
     audioDuration: {
-        fontSize: 12,
+        fontSize: 11,
         color: Colors.textSecondary,
         fontVariant: ['tabular-nums'],
     },
@@ -395,7 +555,78 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#4A4A4A',
         lineHeight: 24,
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        fontFamily: FONT_FAMILY,
+    },
+    captionText: {
+        fontSize: 14,
+        color: Colors.text,
+        marginBottom: 8,
+        lineHeight: 20,
+        fontFamily: FONT_FAMILY,
+        fontStyle: 'italic',
+    },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: Colors.background,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingBottom: 12,
+        marginTop: 20,
+    },
+    modalHeaderTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: Colors.text,
+        letterSpacing: 1,
+    },
+    modalSlide: {
+        width: width,
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: 8,
+    },
+    modalImage: {
+        width: width - 40,
+        height: width * 1.1,
+        borderRadius: 16,
+        backgroundColor: '#EEE',
+    },
+    modalCaption: {
+        color: Colors.text,
+        fontSize: 16,
+        marginTop: 24,
+        textAlign: 'center',
+        lineHeight: 26,
+        fontFamily: FONT_FAMILY,
+        paddingHorizontal: 30,
+    },
+    modalTimeLabel: {
+        color: Colors.secondary,
+        fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 1,
+        marginTop: 12,
+        textTransform: 'uppercase',
+    },
+    dotsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        paddingBottom: 40,
+        paddingTop: 20,
+        gap: 8,
+    },
+    dot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#D5DFD0',
+    },
+    dotActive: {
+        backgroundColor: '#C86438',
     }
 });
 

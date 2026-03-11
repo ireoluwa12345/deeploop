@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Platform, Alert, GestureResponderEvent, ActivityIndicator } from 'react-native';
 import { Audio } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter } from 'expo-router';
 import { Colors } from './styles';
+
+const FONT_FAMILY = 'JetBrainsMono_400Regular';
 import { randomString } from './utils/helper';
 import { apiService } from "./utils/api";
 
@@ -105,6 +107,10 @@ const RecordScreen = () => {
         setRecording(null);
         if (recording) {
             await recording.stopAndUnloadAsync();
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: true,
+            });
             const uri = recording.getURI();
             setRecordingUri(uri);
             console.log('Recording stopped and stored at', uri);
@@ -142,6 +148,27 @@ const RecordScreen = () => {
         }
     };
 
+    const seekToPosition = async (event: GestureResponderEvent) => {
+        if (!sound || playbackDuration <= 0) return;
+        const { locationX } = event.nativeEvent;
+        const seekBarWidth = width - 80; // matches paddingHorizontal: 40
+        const ratio = Math.max(0, Math.min(1, locationX / seekBarWidth));
+        const positionMs = ratio * playbackDuration * 1000;
+        await sound.setPositionAsync(positionMs);
+    };
+
+    const skipForward = async () => {
+        if (!sound || playbackDuration <= 0) return;
+        const newPos = Math.min(playbackDuration, playbackPosition + 10);
+        await sound.setPositionAsync(newPos * 1000);
+    };
+
+    const skipBackward = async () => {
+        if (!sound) return;
+        const newPos = Math.max(0, playbackPosition - 10);
+        await sound.setPositionAsync(newPos * 1000);
+    };
+
     const discardRecording = () => {
         setRecordingUri(null);
         setSound(null);
@@ -151,32 +178,33 @@ const RecordScreen = () => {
         if (sound) sound.unloadAsync();
     };
 
-    const saveRecording = async() => {
-            if (!recordingUri) return;
+    const saveRecording = async () => {
+        if (!recordingUri) return;
 
         setIsSaving(true);
         try {
             const formData = new FormData();
-            const type = `audio`;
 
-            const filename = randomString() + '.mp4';
+            const filename = randomString() + '.m4a';
 
-            // @ts-ignore
+            // @ts-ignore — React Native FormData accepts this shape
             formData.append("file", {
                 uri: recordingUri,
                 name: filename,
-                type: 'audio/mp4',
+                type: 'audio/m4a',
             });
-            formData.append("content_type", type);
+            formData.append("content_type", "audio");
 
             await apiService.createMemory(formData);
-            router.push("/timeline");
+
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            router.replace({ pathname: "/timeline", params: { date: dateStr } });
         } catch (error) {
             Alert.alert("Error", "Failed to save memory");
         } finally {
             setIsSaving(false);
         }
-        router.back();
     };
 
     const handleClose = () => {
@@ -232,6 +260,36 @@ const RecordScreen = () => {
                     {recordingUri ? formatTime(playbackPosition) : formatTime(recordingTime)}
                 </Text>
 
+                {/* Seek Bar — only in review mode */}
+                {recordingUri && playbackDuration > 0 && (
+                    <View style={styles.seekContainer}>
+                        <Text style={styles.seekTime}>{formatTime(playbackPosition)}</Text>
+                        <View
+                            style={styles.seekBarOuter}
+                            onStartShouldSetResponder={() => true}
+                            onResponderRelease={seekToPosition}
+                            onMoveShouldSetResponder={() => true}
+                            onResponderMove={seekToPosition}
+                        >
+                            <View style={styles.seekBarTrack}>
+                                <View
+                                    style={[
+                                        styles.seekBarFill,
+                                        { width: `${(playbackPosition / playbackDuration) * 100}%` },
+                                    ]}
+                                />
+                                <View
+                                    style={[
+                                        styles.seekBarThumb,
+                                        { left: `${(playbackPosition / playbackDuration) * 100}%` },
+                                    ]}
+                                />
+                            </View>
+                        </View>
+                        <Text style={styles.seekTime}>{formatTime(playbackDuration)}</Text>
+                    </View>
+                )}
+
                 {/* Controls */}
                 <View style={styles.controlsContainer}>
                     {!recordingUri ? (
@@ -251,14 +309,28 @@ const RecordScreen = () => {
                                 <Icon name="delete-outline" size={28} color={Colors.primary} />
                             </TouchableOpacity>
 
+                            {/* Skip Backward 10s */}
+                            <TouchableOpacity onPress={skipBackward} style={styles.skipButton}>
+                                <Icon name="rewind-10" size={28} color={Colors.text} />
+                            </TouchableOpacity>
+
                             {/* Play / Pause */}
                             <TouchableOpacity onPress={playRecording} style={styles.playButton}>
                                 <Icon name={isPlaying ? "pause" : "play"} size={40} color={Colors.surface} />
                             </TouchableOpacity>
 
+                            {/* Skip Forward 10s */}
+                            <TouchableOpacity onPress={skipForward} style={styles.skipButton}>
+                                <Icon name="fast-forward-10" size={28} color={Colors.text} />
+                            </TouchableOpacity>
+
                             {/* Save */}
-                            <TouchableOpacity onPress={saveRecording} style={styles.secondaryButton}>
-                                <Icon name="check" size={28} color={Colors.secondary} />
+                            <TouchableOpacity onPress={saveRecording} disabled={isSaving} style={styles.secondaryButton}>
+                                {isSaving ? (
+                                    <ActivityIndicator size="small" color={Colors.secondary} />
+                                ) : (
+                                    <Icon name="check" size={28} color={Colors.secondary} />
+                                )}
                             </TouchableOpacity>
                         </View>
                     )}
@@ -334,7 +406,7 @@ const styles = StyleSheet.create({
     },
     timerText: {
         fontSize: 64,
-        fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+        fontFamily: FONT_FAMILY,
         fontWeight: '400',
         color: Colors.text,
         marginBottom: 40,
@@ -383,15 +455,66 @@ const styles = StyleSheet.create({
         borderRadius: 40,
         backgroundColor: Colors.primary,
     },
+    seekContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        width: '100%',
+        paddingHorizontal: 40,
+        marginBottom: 30,
+    },
+    seekTime: {
+        fontSize: 11,
+        color: Colors.textSecondary,
+        fontFamily: FONT_FAMILY,
+        width: 52,
+        textAlign: 'center',
+    },
+    seekBarOuter: {
+        flex: 1,
+        height: 36,
+        justifyContent: 'center',
+        paddingHorizontal: 4,
+    },
+    seekBarTrack: {
+        height: 4,
+        backgroundColor: Colors.border,
+        borderRadius: 2,
+        position: 'relative',
+    },
+    seekBarFill: {
+        height: '100%',
+        backgroundColor: Colors.primary,
+        borderRadius: 2,
+    },
+    seekBarThumb: {
+        position: 'absolute',
+        top: -6,
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: Colors.primary,
+        marginLeft: -8,
+        shadowColor: Colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 3,
+    },
     playbackControls: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 40,
+        gap: 20,
+    },
+    skipButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     playButton: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: 70,
+        height: 70,
+        borderRadius: 35,
         backgroundColor: Colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
@@ -402,9 +525,9 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     secondaryButton: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: Colors.surface,
         justifyContent: 'center',
         alignItems: 'center',

@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, ActivityIndicator } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 import { useRouter } from "expo-router";
@@ -11,6 +11,8 @@ const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 interface CalendarViewProps {
     currentDate: Date;
     onChangeMonth: (increment: number) => void;
+    entryDays: number[];
+    loading?: boolean;
 }
 
 interface CalendarItem {
@@ -20,7 +22,7 @@ interface CalendarItem {
     isFuture?: boolean;
 }
 
-const CalendarView = ({ currentDate, onChangeMonth }: CalendarViewProps) => {
+const CalendarView = ({ currentDate, onChangeMonth, entryDays, loading = false }: CalendarViewProps) => {
     const router = useRouter();
 
     const year = currentDate.getFullYear();
@@ -50,7 +52,7 @@ const CalendarView = ({ currentDate, onChangeMonth }: CalendarViewProps) => {
         const currentDay = today.getDate();
 
         for (let i = 1; i <= daysInMonth; i++) {
-            const hasEntry = Math.random() > 0.6;
+            const hasEntry = entryDays.includes(i);
 
             data.push({
                 day: i,
@@ -144,6 +146,12 @@ const CalendarView = ({ currentDate, onChangeMonth }: CalendarViewProps) => {
                         )}
                     </View>
                 ))}
+
+                {loading && (
+                    <View style={styles.loadingOverlay}>
+                        <ActivityIndicator size="small" color="#C88A70" />
+                    </View>
+                )}
             </View>
         </View>
     );
@@ -237,7 +245,14 @@ const styles = StyleSheet.create({
         height: 4,
         borderRadius: 2,
         backgroundColor: '#C88A70'
-    }
+    },
+    loadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(244, 241, 234, 0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 12,
+    },
 });
 
 export default CalendarView;

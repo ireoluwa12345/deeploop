@@ -86,10 +86,11 @@ type RefreshToken struct {
 }
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	Password  string    `json:"password"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID           uuid.UUID      `json:"id"`
+	Email        string         `json:"email"`
+	ProfileImage sql.NullString `json:"profile_image"`
+	Password     sql.NullString `json:"password"`
+	Name         string         `json:"name"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
 }

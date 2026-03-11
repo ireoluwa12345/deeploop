@@ -37,6 +37,35 @@ func (q *Queries) CreateMemory(ctx context.Context, arg CreateMemoryParams) (Mem
 	return i, err
 }
 
+const getAllMemoryDatesByUserID = `-- name: GetAllMemoryDatesByUserID :many
+SELECT DISTINCT date FROM memory
+WHERE user_id = $1
+ORDER BY date DESC
+`
+
+func (q *Queries) GetAllMemoryDatesByUserID(ctx context.Context, userID uuid.UUID) ([]time.Time, error) {
+	rows, err := q.db.QueryContext(ctx, getAllMemoryDatesByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []time.Time
+	for rows.Next() {
+		var date time.Time
+		if err := rows.Scan(&date); err != nil {
+			return nil, err
+		}
+		items = append(items, date)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getMemoryByUserID = `-- name: GetMemoryByUserID :one
 SELECT id, user_id, date, created_at, updated_at FROM memory WHERE user_id = $1
 `
@@ -74,4 +103,53 @@ func (q *Queries) GetMemoryByUserIDAndDate(ctx context.Context, arg GetMemoryByU
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getMemoryDatesByMonth = `-- name: GetMemoryDatesByMonth :many
+SELECT date FROM memory
+WHERE user_id = $1
+  AND date >= $2
+  AND date < $3
+`
+
+type GetMemoryDatesByMonthParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Date   time.Time `json:"date"`
+	Date_2 time.Time `json:"date_2"`
+}
+
+func (q *Queries) GetMemoryDatesByMonth(ctx context.Context, arg GetMemoryDatesByMonthParams) ([]time.Time, error) {
+	rows, err := q.db.QueryContext(ctx, getMemoryDatesByMonth, arg.UserID, arg.Date, arg.Date_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []time.Time
+	for rows.Next() {
+		var date time.Time
+		if err := rows.Scan(&date); err != nil {
+			return nil, err
+		}
+		items = append(items, date)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTotalContentCountByUserID = `-- name: GetTotalContentCountByUserID :one
+SELECT COUNT(*) FROM content
+JOIN memory ON content.memory_id = memory.id
+WHERE memory.user_id = $1
+`
+
+func (q *Queries) GetTotalContentCountByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalContentCountByUserID, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
